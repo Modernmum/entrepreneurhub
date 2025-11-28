@@ -1,0 +1,386 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>EntrepreneurHub.ai - Own Your Data, Own Your Future</title>
+  <meta name="description" content="Share problems, products, and revenue with real entrepreneurs. No BS. No fake screenshots. Just transparent growth.">
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+</head>
+<body class="bg-gray-50">
+
+  <!-- Navigation -->
+  <nav class="bg-white border-b border-gray-200">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+      <div class="flex justify-between h-16">
+        <div class="flex items-center">
+          <h1 class="text-2xl font-bold text-gray-900">EntrepreneurHub.ai</h1>
+        </div>
+        <div class="flex items-center space-x-4">
+          <a href="#features" class="text-gray-600 hover:text-gray-900">Features</a>
+          <a href="#how-it-works" class="text-gray-600 hover:text-gray-900">How It Works</a>
+          <button onclick="showLogin()" class="text-gray-600 hover:text-gray-900">Login</button>
+          <button onclick="showSignup()" class="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700">
+            Get Started Free
+          </button>
+        </div>
+      </div>
+    </div>
+  </nav>
+
+  <!-- Hero Section -->
+  <div class="bg-gradient-to-r from-blue-600 to-purple-600 text-white">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-24">
+      <div class="text-center">
+        <h1 class="text-5xl font-bold mb-6">
+          Own Your Data.<br>Own Your Future.
+        </h1>
+        <p class="text-xl mb-8 text-blue-100 max-w-2xl mx-auto">
+          The only entrepreneur community where everyone shares real problems, real products, and real revenue.
+          No BS. No fake screenshots. Just transparent growth.
+        </p>
+        <div class="flex justify-center space-x-4">
+          <button onclick="showSignup()" class="bg-white text-blue-600 px-8 py-3 rounded-lg font-semibold text-lg hover:bg-gray-100">
+            Join Free
+          </button>
+          <button onclick="scrollTo('#how-it-works')" class="border-2 border-white text-white px-8 py-3 rounded-lg font-semibold text-lg hover:bg-white hover:text-blue-600">
+            See How It Works
+          </button>
+        </div>
+        <p class="mt-4 text-blue-100">Free forever. No credit card required.</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- Stats Section -->
+  <div class="bg-white py-12 border-b border-gray-200">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+      <div class="grid grid-cols-1 md:grid-cols-3 gap-8 text-center">
+        <div>
+          <div class="text-4xl font-bold text-blue-600" id="problems-count">0</div>
+          <div class="text-gray-600 mt-2">Real Problems Shared</div>
+        </div>
+        <div>
+          <div class="text-4xl font-bold text-blue-600" id="products-count">0</div>
+          <div class="text-gray-600 mt-2">Products Listed</div>
+        </div>
+        <div>
+          <div class="text-4xl font-bold text-blue-600" id="revenue-count">$0</div>
+          <div class="text-gray-600 mt-2">Public Revenue Shared</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Features Section -->
+  <div id="features" class="py-24">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+      <div class="text-center mb-16">
+        <h2 class="text-4xl font-bold text-gray-900 mb-4">Why EntrepreneurHub?</h2>
+        <p class="text-xl text-gray-600">Because other platforms are full of fake gurus and BS revenue screenshots.</p>
+      </div>
+
+      <div class="grid grid-cols-1 md:grid-cols-3 gap-8">
+        <!-- Feature 1 -->
+        <div class="bg-white p-8 rounded-lg shadow-sm border border-gray-200">
+          <div class="text-4xl mb-4">🎯</div>
+          <h3 class="text-xl font-bold mb-2">Real Problems</h3>
+          <p class="text-gray-600">
+            Entrepreneurs share actual problems they're facing. No fake questions. No guru posts. Just real challenges looking for real solutions.
+          </p>
+        </div>
+
+        <!-- Feature 2 -->
+        <div class="bg-white p-8 rounded-lg shadow-sm border border-gray-200">
+          <div class="text-4xl mb-4">💰</div>
+          <h3 class="text-xl font-bold mb-2">Transparent Revenue</h3>
+          <p class="text-gray-600">
+            See what's actually making money. Monthly revenue reports from real entrepreneurs. No fake screenshots. Verified by the community.
+          </p>
+        </div>
+
+        <!-- Feature 3 -->
+        <div class="bg-white p-8 rounded-lg shadow-sm border border-gray-200">
+          <div class="text-4xl mb-4">🤖</div>
+          <h3 class="text-xl font-bold mb-2">AI Insights</h3>
+          <p class="text-gray-600">
+            AI analyzes all shared problems and revenue to surface opportunities. See what's trending, what's working, and where the gaps are.
+          </p>
+        </div>
+
+        <!-- Feature 4 -->
+        <div class="bg-white p-8 rounded-lg shadow-sm border border-gray-200">
+          <div class="text-4xl mb-4">🔒</div>
+          <h3 class="text-xl font-bold mb-2">You Own Your Data</h3>
+          <p class="text-gray-600">
+            Unlike Reddit or Twitter, you control your data. Export anytime. Delete anytime. We're transparent about how we use it (AI insights only).
+          </p>
+        </div>
+
+        <!-- Feature 5 -->
+        <div class="bg-white p-8 rounded-lg shadow-sm border border-gray-200">
+          <div class="text-4xl mb-4">🚀</div>
+          <h3 class="text-xl font-bold mb-2">No Gatekeepers</h3>
+          <p class="text-gray-600">
+            No moderators removing your posts. No shadow banning. No arbitrary rules. Just entrepreneurs helping entrepreneurs.
+          </p>
+        </div>
+
+        <!-- Feature 6 -->
+        <div class="bg-white p-8 rounded-lg shadow-sm border border-gray-200">
+          <div class="text-4xl mb-4">📊</div>
+          <h3 class="text-xl font-bold mb-2">Growth Tracking</h3>
+          <p class="text-gray-600">
+            Track your journey publicly. Share monthly revenue, customer count, growth rate. Get feedback and support from real builders.
+          </p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- How It Works Section -->
+  <div id="how-it-works" class="bg-gray-100 py-24">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+      <div class="text-center mb-16">
+        <h2 class="text-4xl font-bold text-gray-900 mb-4">How It Works</h2>
+        <p class="text-xl text-gray-600">Three simple steps to join the most transparent entrepreneur community.</p>
+      </div>
+
+      <div class="grid grid-cols-1 md:grid-cols-3 gap-8">
+        <div class="text-center">
+          <div class="bg-blue-600 text-white w-16 h-16 rounded-full flex items-center justify-center text-2xl font-bold mx-auto mb-4">1</div>
+          <h3 class="text-xl font-bold mb-2">Share Your Challenge</h3>
+          <p class="text-gray-600">Post the biggest problem you're facing. Get upvotes and real advice from people who've been there.</p>
+        </div>
+
+        <div class="text-center">
+          <div class="bg-blue-600 text-white w-16 h-16 rounded-full flex items-center justify-center text-2xl font-bold mx-auto mb-4">2</div>
+          <h3 class="text-xl font-bold mb-2">List Your Product</h3>
+          <p class="text-gray-600">Built something? Share it. Get feedback. Optionally share revenue to help others learn what works.</p>
+        </div>
+
+        <div class="text-center">
+          <div class="bg-blue-600 text-white w-16 h-16 rounded-full flex items-center justify-center text-2xl font-bold mx-auto mb-4">3</div>
+          <h3 class="text-xl font-bold mb-2">Get AI Insights</h3>
+          <p class="text-gray-600">Our AI analyzes all data to surface opportunities, trends, and gaps. See what to build next.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- CTA Section -->
+  <div class="bg-blue-600 text-white py-16">
+    <div class="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
+      <h2 class="text-3xl font-bold mb-4">Ready to Build in Public?</h2>
+      <p class="text-xl mb-8 text-blue-100">
+        Join entrepreneurs who are tired of fake revenue screenshots and guru BS.
+      </p>
+      <button onclick="showSignup()" class="bg-white text-blue-600 px-8 py-3 rounded-lg font-semibold text-lg hover:bg-gray-100">
+        Join Free - No Credit Card
+      </button>
+      <p class="mt-4 text-sm text-blue-100">Takes 30 seconds. Start sharing immediately.</p>
+    </div>
+  </div>
+
+  <!-- Footer -->
+  <footer class="bg-gray-900 text-white py-12">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+      <div class="grid grid-cols-1 md:grid-cols-3 gap-8">
+        <div>
+          <h3 class="font-bold text-lg mb-4">EntrepreneurHub.ai</h3>
+          <p class="text-gray-400">Own your data. Own your future.</p>
+        </div>
+        <div>
+          <h4 class="font-bold mb-4">Platform</h4>
+          <ul class="space-y-2 text-gray-400">
+            <li><a href="/problems" class="hover:text-white">Problems</a></li>
+            <li><a href="/products" class="hover:text-white">Products</a></li>
+            <li><a href="/revenue" class="hover:text-white">Revenue Reports</a></li>
+            <li><a href="/opportunities" class="hover:text-white">AI Opportunities</a></li>
+          </ul>
+        </div>
+        <div>
+          <h4 class="font-bold mb-4">Company</h4>
+          <ul class="space-y-2 text-gray-400">
+            <li><a href="/about" class="hover:text-white">About</a></li>
+            <li><a href="/privacy" class="hover:text-white">Privacy</a></li>
+            <li><a href="/terms" class="hover:text-white">Terms</a></li>
+          </ul>
+        </div>
+      </div>
+      <div class="mt-8 pt-8 border-t border-gray-800 text-center text-gray-400">
+        <p>&copy; 2025 EntrepreneurHub.ai. Built with transparency.</p>
+      </div>
+    </div>
+  </footer>
+
+  <!-- Auth Modal (hidden by default) -->
+  <div id="auth-modal" class="hidden fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+    <div class="bg-white rounded-lg p-8 max-w-md w-full mx-4">
+      <div class="flex justify-between items-center mb-6">
+        <h2 id="auth-title" class="text-2xl font-bold">Sign Up</h2>
+        <button onclick="closeAuthModal()" class="text-gray-400 hover:text-gray-600">
+          <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+          </svg>
+        </button>
+      </div>
+
+      <div id="signup-form">
+        <input type="email" id="signup-email" placeholder="Email" class="w-full px-4 py-2 border border-gray-300 rounded-lg mb-4">
+        <input type="password" id="signup-password" placeholder="Password" class="w-full px-4 py-2 border border-gray-300 rounded-lg mb-4">
+        <input type="text" id="signup-username" placeholder="Username" class="w-full px-4 py-2 border border-gray-300 rounded-lg mb-4">
+        <button onclick="handleSignup()" class="w-full bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 mb-4">
+          Create Account
+        </button>
+        <p class="text-center text-gray-600">
+          Already have an account?
+          <button onclick="switchToLogin()" class="text-blue-600 hover:underline">Login</button>
+        </p>
+      </div>
+
+      <div id="login-form" class="hidden">
+        <input type="email" id="login-email" placeholder="Email" class="w-full px-4 py-2 border border-gray-300 rounded-lg mb-4">
+        <input type="password" id="login-password" placeholder="Password" class="w-full px-4 py-2 border border-gray-300 rounded-lg mb-4">
+        <button onclick="handleLogin()" class="w-full bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 mb-4">
+          Login
+        </button>
+        <p class="text-center text-gray-600">
+          Don't have an account?
+          <button onclick="switchToSignup()" class="text-blue-600 hover:underline">Sign Up</button>
+        </p>
+      </div>
+
+      <div id="auth-error" class="hidden bg-red-100 border border-red-400 text-red-700 px-4 py-2 rounded mt-4"></div>
+      <div id="auth-success" class="hidden bg-green-100 border border-green-400 text-green-700 px-4 py-2 rounded mt-4"></div>
+    </div>
+  </div>
+
+  <script>
+    // Initialize Supabase
+    const SUPABASE_URL = 'https://awgxauppcufwftcxrfez.supabase.co';
+    const SUPABASE_ANON_KEY = 'sb_publishable_5BJ94qUvCjBWbQ0zyudndA_mbi5Mm4K';
+    const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+    // Load stats on page load
+    async function loadStats() {
+      const { count: problemsCount } = await supabase.from('problems').select('*', { count: 'exact', head: true });
+      const { count: productsCount } = await supabase.from('products_listed').select('*', { count: 'exact', head: true });
+
+      document.getElementById('problems-count').textContent = problemsCount || 0;
+      document.getElementById('products-count').textContent = productsCount || 0;
+
+      // Get total revenue
+      const { data: revenue } = await supabase.from('revenue_reports').select('revenue').eq('public', true);
+      const totalRevenue = revenue ? revenue.reduce((sum, r) => sum + (r.revenue || 0), 0) / 100 : 0;
+      document.getElementById('revenue-count').textContent = '$' + totalRevenue.toLocaleString();
+    }
+
+    // Auth Modal Functions
+    function showSignup() {
+      document.getElementById('auth-modal').classList.remove('hidden');
+      document.getElementById('auth-title').textContent = 'Sign Up';
+      document.getElementById('signup-form').classList.remove('hidden');
+      document.getElementById('login-form').classList.add('hidden');
+    }
+
+    function showLogin() {
+      document.getElementById('auth-modal').classList.remove('hidden');
+      document.getElementById('auth-title').textContent = 'Login';
+      document.getElementById('signup-form').classList.add('hidden');
+      document.getElementById('login-form').classList.remove('hidden');
+    }
+
+    function closeAuthModal() {
+      document.getElementById('auth-modal').classList.add('hidden');
+      document.getElementById('auth-error').classList.add('hidden');
+      document.getElementById('auth-success').classList.add('hidden');
+    }
+
+    function switchToLogin() {
+      showLogin();
+    }
+
+    function switchToSignup() {
+      showSignup();
+    }
+
+    async function handleSignup() {
+      const email = document.getElementById('signup-email').value;
+      const password = document.getElementById('signup-password').value;
+      const username = document.getElementById('signup-username').value;
+
+      if (!email || !password || !username) {
+        showError('Please fill all fields');
+        return;
+      }
+
+      const { data, error } = await supabase.auth.signUp({
+        email,
+        password,
+        options: {
+          data: {
+            username: username
+          }
+        }
+      });
+
+      if (error) {
+        showError(error.message);
+      } else {
+        showSuccess('Account created! Redirecting...');
+        setTimeout(() => {
+          window.location.href = '/dashboard.html';
+        }, 1000);
+      }
+    }
+
+    async function handleLogin() {
+      const email = document.getElementById('login-email').value;
+      const password = document.getElementById('login-password').value;
+
+      if (!email || !password) {
+        showError('Please fill all fields');
+        return;
+      }
+
+      const { data, error } = await supabase.auth.signInWithPassword({
+        email,
+        password
+      });
+
+      if (error) {
+        showError(error.message);
+      } else {
+        showSuccess('Logged in! Redirecting...');
+        setTimeout(() => {
+          window.location.href = '/dashboard.html';
+        }, 1000);
+      }
+    }
+
+    function showError(message) {
+      const errorDiv = document.getElementById('auth-error');
+      errorDiv.textContent = message;
+      errorDiv.classList.remove('hidden');
+      document.getElementById('auth-success').classList.add('hidden');
+    }
+
+    function showSuccess(message) {
+      const successDiv = document.getElementById('auth-success');
+      successDiv.textContent = message;
+      successDiv.classList.remove('hidden');
+      document.getElementById('auth-error').classList.add('hidden');
+    }
+
+    function scrollTo(selector) {
+      document.querySelector(selector)?.scrollIntoView({ behavior: 'smooth' });
+    }
+
+    // Load stats when page loads
+    loadStats();
+  </script>
+
+</body>
+</html>
