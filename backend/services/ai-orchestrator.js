@@ -1,5 +1,6 @@
 // AI Orchestrator - Smart model routing with cost protection
 const config = require('../config/ai-models');
+const notifications = require('./notifications');
 
 class AIOrchestrator {
   constructor() {
@@ -24,6 +25,8 @@ class AIOrchestrator {
       this.usage.daily = {};
       this.usage.totalCost = 0;
       this.usage.lastReset = today;
+      this.warningShown = false;
+      this.capReachedShown = false;
     }
   }
 
@@ -42,9 +45,22 @@ class AIOrchestrator {
     const model = config.models[modelId];
     const estimatedCost = this.calculateCost(modelId, estimatedTokens, estimatedTokens);
 
+    // Warn at 80% of daily cap
+    const warningThreshold = config.DAILY_SPENDING_CAP * 0.8;
+    if (this.usage.totalCost >= warningThreshold && this.usage.totalCost < config.DAILY_SPENDING_CAP) {
+      if (!this.warningShown) {
+        notifications.notifyDailySpendingWarning(this.usage.totalCost, config.DAILY_SPENDING_CAP);
+        this.warningShown = true;
+      }
+    }
+
     // Check daily spending cap
     if (this.usage.totalCost + estimatedCost > config.DAILY_SPENDING_CAP) {
       console.warn(`⚠️  Daily spending cap reached: $${this.usage.totalCost.toFixed(2)}/$${config.DAILY_SPENDING_CAP}`);
+      if (!this.capReachedShown) {
+        notifications.notifySpendingCapReached(this.usage.totalCost, config.DAILY_SPENDING_CAP);
+        this.capReachedShown = true;
+      }
       return false;
     }
 

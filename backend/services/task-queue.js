@@ -3,6 +3,7 @@
 
 const Queue = require('bull');
 const orchestrator = require('./ai-orchestrator');
+const notifications = require('./notifications');
 
 class TaskQueueManager {
   constructor() {
@@ -101,14 +102,20 @@ class TaskQueueManager {
     Object.entries(this.queues).forEach(([name, queue]) => {
       queue.on('completed', (job, result) => {
         console.log(`✅ ${name} job ${job.id} completed`);
+        // Send Discord notification
+        notifications.notifyJobCompleted(name, job.id, result);
       });
 
       queue.on('failed', (job, err) => {
         console.error(`❌ ${name} job ${job.id} failed:`, err.message);
+        // Send Discord notification
+        notifications.notifyJobFailed(name, job.id, err.message);
       });
 
       queue.on('stalled', (job) => {
         console.warn(`⚠️  ${name} job ${job.id} stalled`);
+        // Send Discord notification
+        notifications.notifyJobStalled(name, job.id);
       });
     });
   }
