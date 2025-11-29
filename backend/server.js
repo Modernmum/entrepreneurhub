@@ -6,6 +6,7 @@ const express = require('express');
 const cors = require('cors');
 const taskQueue = require('./services/supabase-queue');
 const orchestrator = require('./services/ai-orchestrator');
+const queueWorker = require('./services/queue-worker');
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -152,13 +153,20 @@ app.post('/api/solutions/lead-generation', async (req, res) => {
 app.get('/api/solutions/lead-generation/status/:jobId', async (req, res) => {
   try {
     const { jobId } = req.params;
-    const status = await taskQueue.getJobStatus('leadGeneration', jobId);
+    const job = await taskQueue.getJobStatus(jobId);
 
-    if (!status) {
+    if (!job) {
       return res.status(404).json({ error: 'Job not found' });
     }
 
-    res.json(status);
+    // Format response for frontend
+    res.json({
+      id: job.id,
+      state: job.status,
+      progress: job.status === 'completed' ? 100 : job.status === 'processing' ? 50 : 0,
+      result: job.result,
+      error: job.error
+    });
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
@@ -275,10 +283,14 @@ app.listen(PORT, () => {
 
 🚀 Ready to solve entrepreneur problems autonomously!
   `);
+
+  // Start queue worker
+  queueWorker.start();
 });
 
 // Graceful shutdown
 process.on('SIGTERM', () => {
   console.log('SIGTERM received, shutting down gracefully...');
+  queueWorker.stop();
   process.exit(0);
 });
