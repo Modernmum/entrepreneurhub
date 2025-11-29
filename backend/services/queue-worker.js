@@ -1,7 +1,5 @@
 // Queue Worker - Processes jobs from Supabase queue
 const queue = require('./supabase-queue');
-const leadScraper = require('./lead-scraper');
-const orchestrator = require('./ai-orchestrator');
 
 class QueueWorker {
   constructor() {
@@ -14,18 +12,27 @@ class QueueWorker {
     // Lead Generation Processor
     this.processors.leadGeneration = async (jobData) => {
       console.log('📊 Processing lead generation job...');
-      const leads = await leadScraper.findLeads(jobData);
 
-      return {
-        success: true,
-        leadsFound: leads.length,
-        leads: leads,
-        summary: {
-          totalFound: leads.length,
-          avgFitScore: leads.reduce((sum, l) => sum + (l.fitScore || 0), 0) / (leads.length || 1),
-          sources: [...new Set(leads.map(l => l.source))]
-        }
-      };
+      // Lazy load to avoid startup crashes
+      const leadScraper = require('./lead-scraper');
+
+      try {
+        const leads = await leadScraper.findLeads(jobData);
+
+        return {
+          success: true,
+          leadsFound: leads.length,
+          leads: leads,
+          summary: {
+            totalFound: leads.length,
+            avgFitScore: leads.reduce((sum, l) => sum + (l.fitScore || 0), 0) / (leads.length || 1),
+            sources: [...new Set(leads.map(l => l.source))]
+          }
+        };
+      } catch (error) {
+        console.error('Lead generation error:', error);
+        throw error;
+      }
     };
 
     // Add more processors as needed
