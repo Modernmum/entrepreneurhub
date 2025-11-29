@@ -7,6 +7,7 @@ const cors = require('cors');
 const taskQueue = require('./services/supabase-queue');
 const orchestrator = require('./services/ai-orchestrator');
 const queueWorker = require('./services/queue-worker');
+const partnerManager = require('./services/partner-manager');
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -259,6 +260,160 @@ app.post('/api/solutions/email-marketing', async (req, res) => {
       message: 'Email marketing campaign creation started.',
       statusUrl: `/api/jobs/emailMarketing/${job.id}`
     });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// ============================================================================
+// PARTNER ENDPOINTS (Multi-Tenant System)
+// ============================================================================
+
+// Get tenant info
+app.get('/api/partner/:tenantSlug', async (req, res) => {
+  try {
+    const { tenantSlug } = req.params;
+    const tenant = await partnerManager.getTenant(tenantSlug);
+    res.json(tenant);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Get partner dashboard stats
+app.get('/api/partner/:tenantSlug/stats', async (req, res) => {
+  try {
+    const { tenantSlug } = req.params;
+    const stats = await partnerManager.getTenantStats(tenantSlug);
+    res.json(stats);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Provision single client
+app.post('/api/partner/:tenantSlug/provision-client', async (req, res) => {
+  try {
+    const { tenantSlug } = req.params;
+    const { userEmail, userName, plan, source } = req.body;
+
+    if (!userEmail || !userName) {
+      return res.status(400).json({ error: 'userEmail and userName are required' });
+    }
+
+    const result = await partnerManager.provisionClient({
+      tenantSlug,
+      userEmail,
+      userName,
+      plan: plan || 'free',
+      source: source || 'partner'
+    });
+
+    res.json(result);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Bulk provision clients
+app.post('/api/partner/:tenantSlug/bulk-provision', async (req, res) => {
+  try {
+    const { tenantSlug } = req.params;
+    const { clients } = req.body;
+
+    if (!Array.isArray(clients)) {
+      return res.status(400).json({ error: 'clients must be an array' });
+    }
+
+    const results = await partnerManager.bulkProvisionClients(tenantSlug, clients);
+    res.json(results);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Update client plan
+app.put('/api/partner/:tenantSlug/client/:userEmail/plan', async (req, res) => {
+  try {
+    const { tenantSlug, userEmail } = req.params;
+    const { plan } = req.body;
+
+    if (!plan) {
+      return res.status(400).json({ error: 'plan is required' });
+    }
+
+    const result = await partnerManager.updateClientPlan(tenantSlug, userEmail, plan);
+    res.json(result);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Get revenue share report
+app.get('/api/partner/:tenantSlug/revenue', async (req, res) => {
+  try {
+    const { tenantSlug } = req.params;
+    const { startMonth, endMonth } = req.query;
+
+    const currentMonth = new Date().toISOString().slice(0, 7);
+    const report = await partnerManager.getRevenueShareReport(
+      tenantSlug,
+      startMonth || currentMonth,
+      endMonth || currentMonth
+    );
+
+    res.json(report);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Calculate monthly revenue
+app.post('/api/partner/:tenantSlug/calculate-revenue', async (req, res) => {
+  try {
+    const { tenantSlug } = req.params;
+    const { month } = req.body;
+
+    const currentMonth = month || new Date().toISOString().slice(0, 7);
+    const revenue = await partnerManager.calculateMonthlyRevenue(tenantSlug, currentMonth);
+
+    res.json(revenue);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Add testimonial
+app.post('/api/partner/:tenantSlug/testimonial', async (req, res) => {
+  try {
+    const { tenantSlug } = req.params;
+    const testimonial = await partnerManager.addTestimonial({
+      tenantSlug,
+      ...req.body
+    });
+
+    res.json({
+      success: true,
+      testimonial
+    });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Get social proof
+app.get('/api/partner/:tenantSlug/social-proof', async (req, res) => {
+  try {
+    const { tenantSlug } = req.params;
+    const { type, publishedOnly } = req.query;
+
+    const socialProof = await partnerManager.getSocialProof(
+      tenantSlug,
+      type || null,
+      publishedOnly !== 'false'
+    );
+
+    res.json(socialProof);
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
