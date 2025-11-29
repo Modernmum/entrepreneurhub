@@ -8,6 +8,7 @@ const taskQueue = require('./services/supabase-queue');
 const orchestrator = require('./services/ai-orchestrator');
 const queueWorker = require('./services/queue-worker');
 const partnerManager = require('./services/partner-manager');
+const automationScheduler = require('./services/automation-scheduler');
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -420,6 +421,86 @@ app.get('/api/partner/:tenantSlug/social-proof', async (req, res) => {
 });
 
 // ============================================================================
+// AUTOMATION ENDPOINTS (Scheduled + On-Demand)
+// ============================================================================
+
+// Get automation status
+app.get('/api/automation/status', (req, res) => {
+  try {
+    const status = automationScheduler.getStatus();
+    res.json(status);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Manually trigger partner lead generation
+app.post('/api/automation/trigger/lead-gen/:tenantSlug', async (req, res) => {
+  try {
+    const { tenantSlug } = req.params;
+    const settings = req.body;
+
+    const job = await automationScheduler.triggerPartnerLeadGen(tenantSlug, settings);
+
+    res.json({
+      success: true,
+      message: `Lead generation triggered for ${tenantSlug}`,
+      jobId: job.id
+    });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Manually trigger opportunity scan
+app.post('/api/automation/trigger/opportunity-scan', async (req, res) => {
+  try {
+    const result = await automationScheduler.triggerOpportunityScan();
+
+    res.json({
+      success: true,
+      message: `Found ${result.count} opportunities`,
+      opportunities: result.opportunities
+    });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Get automation log for tenant
+app.get('/api/automation/:tenantSlug/log', async (req, res) => {
+  try {
+    const { tenantSlug } = req.params;
+    const { limit = 50, type } = req.query;
+
+    // TODO: Implement log retrieval
+    res.json({
+      message: 'Automation log retrieval coming soon',
+      tenantSlug,
+      limit,
+      type
+    });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Get automation stats for tenant
+app.get('/api/automation/:tenantSlug/stats', async (req, res) => {
+  try {
+    const { tenantSlug } = req.params;
+
+    // TODO: Implement stats retrieval using get_automation_stats function
+    res.json({
+      message: 'Automation stats retrieval coming soon',
+      tenantSlug
+    });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// ============================================================================
 // START SERVER
 // ============================================================================
 
@@ -435,17 +516,22 @@ app.listen(PORT, () => {
 📊 Health: http://localhost:${PORT}/health
 💰 AI Stats: http://localhost:${PORT}/api/ai/stats
 📋 Queue Stats: http://localhost:${PORT}/api/queues/stats
+🤖 Automation: http://localhost:${PORT}/api/automation/status
 
 🚀 Ready to solve entrepreneur problems autonomously!
   `);
 
   // Start queue worker
   queueWorker.start();
+
+  // Start automation scheduler
+  automationScheduler.start();
 });
 
 // Graceful shutdown
 process.on('SIGTERM', () => {
   console.log('SIGTERM received, shutting down gracefully...');
   queueWorker.stop();
+  automationScheduler.stop();
   process.exit(0);
 });
