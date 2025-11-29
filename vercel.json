@@ -3,6 +3,10 @@
     {
       "source": "/api/solutions/:path*",
       "destination": "https://web-production-486cb.up.railway.app/api/solutions/:path*"
+    },
+    {
+      "source": "/api/jobs/:path*",
+      "destination": "https://web-production-486cb.up.railway.app/api/jobs/:path*"
     }
   ]
 }
