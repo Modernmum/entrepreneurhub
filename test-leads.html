@@ -111,13 +111,14 @@
       submitBtn.textContent = 'Generating...';
 
       try {
-        // Direct API call - simplified
-        const response = await fetch('/api/generate-leads-simple', {
+        // Call Railway backend lead generation endpoint
+        const response = await fetch('/api/solutions/lead-generation', {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json'
           },
           body: JSON.stringify({
+            userId: 'test-user',
             targetIndustry: document.getElementById('industry').value,
             location: document.getElementById('location').value,
             criteria: {
