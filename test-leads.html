@@ -91,6 +91,7 @@
 
   <script>
     let currentResults = null;
+    let pollInterval = null;
 
     document.getElementById('leadForm').addEventListener('submit', async (e) => {
       e.preventDefault();
@@ -110,6 +111,7 @@
       submitBtn.textContent = 'Generating...';
 
       try {
+        // Step 1: Create the job
         const response = await fetch('/api/lead-generation', {
           method: 'POST',
           headers: {
@@ -133,21 +135,84 @@
         const data = await response.json();
 
         if (!response.ok) {
-          throw new Error(data.error || 'Failed to generate leads');
+          throw new Error(data.error || 'Failed to create lead generation job');
         }
 
-        currentResults = data;
-        displayResults(data);
+        const jobId = data.jobId;
+        console.log('Job created:', jobId);
+
+        // Step 2: Process the job
+        loading.querySelector('p').textContent = 'Processing job...';
+
+        const processResponse = await fetch('/api/process-jobs', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            queueName: 'leadGeneration',
+            limit: 1
+          })
+        });
+
+        const processData = await processResponse.json();
+        console.log('Processing result:', processData);
+
+        // Step 3: Poll for results
+        loading.querySelector('p').textContent = 'Fetching results...';
+        await pollForResults(jobId);
 
       } catch (err) {
+        console.error('Error:', err);
         error.textContent = err.message;
         error.classList.remove('hidden');
-      } finally {
         loading.classList.add('hidden');
         submitBtn.disabled = false;
         submitBtn.textContent = 'Generate Leads';
       }
     });
+
+    async function pollForResults(jobId) {
+      const submitBtn = document.getElementById('submitBtn');
+      const loading = document.getElementById('loading');
+      const error = document.getElementById('error');
+
+      let attempts = 0;
+      const maxAttempts = 30; // 30 seconds max
+
+      pollInterval = setInterval(async () => {
+        attempts++;
+
+        try {
+          const response = await fetch(`/api/lead-generation?jobId=${jobId}`);
+          const data = await response.json();
+
+          console.log(`Poll attempt ${attempts}:`, data);
+
+          if (data.status === 'completed') {
+            clearInterval(pollInterval);
+            currentResults = data.result;
+            displayResults(data.result);
+            loading.classList.add('hidden');
+            submitBtn.disabled = false;
+            submitBtn.textContent = 'Generate Leads';
+          } else if (data.status === 'failed') {
+            clearInterval(pollInterval);
+            throw new Error(data.error || 'Job failed');
+          } else if (attempts >= maxAttempts) {
+            clearInterval(pollInterval);
+            throw new Error('Job timeout - still processing. Please check back later.');
+          }
+        } catch (err) {
+          clearInterval(pollInterval);
+          error.textContent = err.message;
+          error.classList.remove('hidden');
+          loading.classList.add('hidden');
+          submitBtn.disabled = false;
+          submitBtn.textContent = 'Generate Leads';
+        }
+      }, 1000); // Check every second
+    }
 
     function displayResults(data) {
       const summary = document.getElementById('summary');
