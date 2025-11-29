@@ -33,10 +33,28 @@ class QueueWorker {
           });
         }
 
+        // Generate CSV
+        const csvHeaders = ['Name', 'Company', 'Source', 'URL', 'Description', 'Pain Points', 'Fit Score', 'Outreach Tip'];
+        const csvRows = leads.map(lead => [
+          lead.name,
+          lead.company,
+          lead.source,
+          lead.url,
+          lead.description,
+          Array.isArray(lead.painPoints) ? lead.painPoints.join('; ') : lead.painPoints,
+          lead.fitScore,
+          lead.outreachTip
+        ]);
+        const csv = [
+          csvHeaders.join(','),
+          ...csvRows.map(row => row.map(cell => `"${cell}"`).join(','))
+        ].join('\n');
+
         return {
           success: true,
           leadsFound: leads.length,
           leads: leads,
+          csv: csv,
           summary: {
             totalFound: leads.length,
             avgFitScore: leads.reduce((sum, l) => sum + l.fitScore, 0) / leads.length,
