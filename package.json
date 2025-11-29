@@ -1,0 +1,20 @@
+{
+  "name": "unbound-team",
+  "version": "1.0.0",
+  "description": "Unbound.team - Your Autonomous AI Team, Unbound from Big Tech",
+  "main": "index.html",
+  "scripts": {
+    "test": "echo \"No tests yet\""
+  },
+  "keywords": ["ai", "automation", "entrepreneur", "anti-big-tech"],
+  "author": "Unbound.team",
+  "license": "MIT",
+  "dependencies": {
+    "@supabase/supabase-js": "^2.39.7",
+    "@anthropic-ai/sdk": "^0.20.0",
+    "openai": "^4.28.0",
+    "@google/generative-ai": "^0.2.1",
+    "axios": "^1.6.7",
+    "cheerio": "^1.0.0-rc.12"
+  }
+}
