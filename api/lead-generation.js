@@ -1,5 +1,5 @@
 // Vercel Serverless Function for Lead Generation
-const supabaseQueue = require('../backend/services/supabase-queue');
+const { createClient } = require('@supabase/supabase-js');
 
 module.exports = async (req, res) => {
   // Enable CORS
@@ -12,20 +12,34 @@ module.exports = async (req, res) => {
   }
 
   try {
+    const supabase = createClient(
+      process.env.SUPABASE_URL,
+      process.env.SUPABASE_SERVICE_KEY || process.env.SUPABASE_KEY
+    );
+
     // POST: Create new lead generation job
     if (req.method === 'POST') {
       const { targetIndustry, location, criteria } = req.body;
 
       // Add job to queue
-      const job = await supabaseQueue.addJob('leadGeneration', {
-        targetIndustry,
-        location,
-        criteria
-      });
+      const { data, error } = await supabase
+        .from('job_queue')
+        .insert({
+          queue_name: 'leadGeneration',
+          job_data: { targetIndustry, location, criteria },
+          priority: 0,
+          max_attempts: 3
+        })
+        .select()
+        .single();
+
+      if (error) {
+        throw new Error(`Failed to create job: ${error.message}`);
+      }
 
       return res.status(200).json({
         success: true,
-        jobId: job.id,
+        jobId: data.id,
         status: 'queued',
         message: 'Lead generation job created. Use /api/lead-generation?jobId=<id> to check status.'
       });
@@ -39,9 +53,13 @@ module.exports = async (req, res) => {
         return res.status(400).json({ error: 'jobId required' });
       }
 
-      const job = await supabaseQueue.getJobStatus(jobId);
+      const { data: job, error } = await supabase
+        .from('job_queue')
+        .select('*')
+        .eq('id', jobId)
+        .single();
 
-      if (!job) {
+      if (error || !job) {
         return res.status(404).json({ error: 'Job not found' });
       }
 
@@ -60,7 +78,7 @@ module.exports = async (req, res) => {
 
   } catch (error) {
     console.error('Lead generation error:', error);
-    res.status(500).json({
+    return res.status(500).json({
       error: error.message,
       stack: process.env.NODE_ENV === 'development' ? error.stack : undefined
     });
