@@ -139,12 +139,21 @@
           throw new Error(data.error || 'Failed to generate leads');
         }
 
-        // Display results directly
-        currentResults = data;
-        displayResults(data);
-        loading.classList.add('hidden');
-        submitBtn.disabled = false;
-        submitBtn.textContent = 'Generate Leads';
+        // Check if this is a queue-based response (has jobId) or direct response (has leads)
+        if (data.jobId) {
+          // Queue-based: poll for results
+          loading.querySelector('p').textContent = 'Job queued. Checking status...';
+          await pollJobStatus(data.jobId, data.statusUrl);
+        } else if (data.leads) {
+          // Direct response: display immediately
+          currentResults = data;
+          displayResults(data);
+          loading.classList.add('hidden');
+          submitBtn.disabled = false;
+          submitBtn.textContent = 'Generate Leads';
+        } else {
+          throw new Error('Unexpected response format');
+        }
 
       } catch (err) {
         console.error('Error:', err);
@@ -156,31 +165,72 @@
       }
     });
 
+    async function pollJobStatus(jobId, statusUrl) {
+      const maxAttempts = 60; // 5 minutes max (5 second intervals)
+      let attempts = 0;
+
+      while (attempts < maxAttempts) {
+        try {
+          const response = await fetch(statusUrl);
+          const jobStatus = await response.json();
+
+          if (jobStatus.state === 'completed' && jobStatus.result) {
+            // Job completed successfully
+            currentResults = jobStatus.result;
+            displayResults(jobStatus.result);
+            loading.classList.add('hidden');
+            document.getElementById('submitBtn').disabled = false;
+            document.getElementById('submitBtn').textContent = 'Generate Leads';
+            return;
+          } else if (jobStatus.state === 'failed') {
+            throw new Error(jobStatus.error || 'Job failed');
+          }
+
+          // Update status message
+          loading.querySelector('p').textContent = `Processing... (${Math.round(jobStatus.progress || 0)}%)`;
+
+          // Wait 5 seconds before next poll
+          await new Promise(resolve => setTimeout(resolve, 5000));
+          attempts++;
+        } catch (err) {
+          throw new Error(`Failed to check job status: ${err.message}`);
+        }
+      }
+
+      throw new Error('Job timed out after 5 minutes');
+    }
+
     function displayResults(data) {
       const summary = document.getElementById('summary');
       const leadsList = document.getElementById('leadsList');
       const results = document.getElementById('results');
 
+      // Extract data with fallbacks
+      const leadsFound = data.leadsFound || data.leads?.length || 0;
+      const leads = data.leads || [];
+      const avgFitScore = data.summary?.avgFitScore || (leads.reduce((sum, l) => sum + (l.fitScore || 0), 0) / (leads.length || 1));
+      const sources = data.summary?.sources || [...new Set(leads.map(l => l.source))];
+
       // Summary
       summary.innerHTML = `
         <div class="grid grid-cols-3 gap-4 text-center">
           <div>
-            <p class="text-3xl font-bold text-blue-500">${data.leadsFound}</p>
+            <p class="text-3xl font-bold text-blue-500">${leadsFound}</p>
             <p class="text-sm text-gray-400">Leads Found</p>
           </div>
           <div>
-            <p class="text-3xl font-bold text-green-500">${data.summary.avgFitScore.toFixed(1)}/10</p>
+            <p class="text-3xl font-bold text-green-500">${avgFitScore.toFixed(1)}/10</p>
             <p class="text-sm text-gray-400">Avg Fit Score</p>
           </div>
           <div>
-            <p class="text-3xl font-bold text-purple-500">${data.summary.sources.length}</p>
+            <p class="text-3xl font-bold text-purple-500">${sources.length}</p>
             <p class="text-sm text-gray-400">Sources</p>
           </div>
         </div>
       `;
 
       // Leads list
-      leadsList.innerHTML = data.leads.map((lead, i) => `
+      leadsList.innerHTML = leads.map((lead, i) => `
         <div class="bg-gray-900 rounded p-4 border border-gray-700">
           <div class="flex justify-between items-start mb-2">
             <div>
