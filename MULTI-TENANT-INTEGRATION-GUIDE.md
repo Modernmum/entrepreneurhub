@@ -283,9 +283,9 @@ platform.growthmanagerpro.com → GMP (white-label)
 
 1. **DNS Setup:**
    ```
-   CNAME tools.maggieforbes.com → unbound-api.vercel.app
-   CNAME platform.growthmanagerpro.com → unbound-api.vercel.app
-   CNAME app.unboundteam.com → unbound-api.vercel.app
+   CNAME tools.maggieforbes.com → unboundteam-three.vercel.app
+   CNAME platform.growthmanagerpro.com → unboundteam-three.vercel.app
+   CNAME app.unboundteam.com → unboundteam-three.vercel.app
    ```
 
 2. **Vercel Configuration:**

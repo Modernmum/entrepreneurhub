@@ -205,7 +205,7 @@ https://your-app.up.railway.app
 
 **Frontend (Vercel):**
 ```
-https://unboundteam.vercel.app (or your custom domain)
+https://unboundteam-three.vercel.app (or your custom domain)
 ```
 
 ---

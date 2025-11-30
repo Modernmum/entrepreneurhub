@@ -73,7 +73,7 @@ DAILY_SPENDING_CAP=5.00
 ```
 
 **How to Add:**
-1. Go to: https://vercel.com/maggie-forbes-strategies/unbound-team/settings/environment-variables
+1. Go to: https://vercel.com/geminimummys-projects/unboundteam/settings/environment-variables
 2. Add each variable above
 3. Select "Production", "Preview", and "Development" for each
 4. Click "Save"
@@ -188,7 +188,7 @@ vercel --prod
 vercel --prod --env ANTHROPIC_API_KEY=xxx
 
 # Check deployment logs
-vercel logs https://unbound-team-ke6edjcpv-maggie-forbes-strategies.vercel.app
+vercel logs https://unboundteam-three.vercel.app
 
 # List deployments
 vercel ls
@@ -291,7 +291,7 @@ vercel rollback
 - **Vercel Dashboard:** https://vercel.com/dashboard
 - **Vercel Docs:** https://vercel.com/docs
 - **Supabase Dashboard:** https://supabase.com/dashboard
-- **Deployment Logs:** `vercel logs [url]`
+- **Deployment Logs:** `vercel logs https://unboundteam-three.vercel.app`
 
 ---
 

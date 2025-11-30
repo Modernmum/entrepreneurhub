@@ -99,7 +99,7 @@ maggieforbesstrategies.com/dashboard → maggie-forbes-dashboard.html
 ```
 
 **In Vercel:**
-1. Go to: https://vercel.com/maggie-forbes-strategies/unbound-team
+1. Go to: https://vercel.com/geminimummys-projects/unboundteam
 2. Settings → Domains
 3. Add domain: `clients.maggieforbesstrategies.com`
 4. Add DNS record:
