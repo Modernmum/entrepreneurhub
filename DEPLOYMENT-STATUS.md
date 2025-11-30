@@ -9,7 +9,7 @@
 
 **Platform:** Vercel
 **Status:** Deployed and running
-**URL:** https://unbound-team-ke6edjcpv-maggie-forbes-strategies.vercel.app
+**URL:** https://unboundteam-three.vercel.app
 
 **What's Deployed:**
 - ✅ Frontend HTML pages (index.html, dashboard.html, test-leads.html)
@@ -37,7 +37,7 @@
 ### 1. Disable Vercel Deployment Protection (URGENT)
 
 **Action Required:**
-1. Go to: https://vercel.com/maggie-forbes-strategies/unbound-team
+1. Go to: https://vercel.com/geminimummys-projects/unboundteam
 2. Click "Settings" → "Deployment Protection"
 3. Disable "Vercel Authentication" or set to "Off"
 4. Save changes
@@ -111,7 +111,7 @@ Once deployment protection is disabled and environment variables are added:
 
 ```bash
 # Test health endpoint
-curl https://unbound-team-ke6edjcpv-maggie-forbes-strategies.vercel.app/api/health
+curl https://unboundteam-three.vercel.app/api/health
 
 # Expected response:
 {
@@ -124,7 +124,7 @@ curl https://unbound-team-ke6edjcpv-maggie-forbes-strategies.vercel.app/api/heal
 }
 
 # Test lead generation
-curl -X POST https://unbound-team-ke6edjcpv-maggie-forbes-strategies.vercel.app/api/generate-leads-simple \
+curl -X POST https://unboundteam-three.vercel.app/api/generate-leads-simple \
   -H "Content-Type: application/json" \
   -d '{
     "targetIndustry": "SaaS founders",
