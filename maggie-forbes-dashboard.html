@@ -1,0 +1,743 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Client Dashboard | Maggie Forbes Strategies</title>
+
+  <!-- Favicon -->
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg">
+
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@300;400;600&family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    :root {
+      --gold: #B8935F;
+      --gold-light: #D4B896;
+      --navy: #1a2332;
+      --navy-light: #2c3e50;
+      --cream: #f8f6f3;
+      --white: #ffffff;
+      --text-dark: #2c2c2c;
+      --text-light: #666666;
+      --green: #43a047;
+      --blue: #4a6cf7;
+      --orange: #fb8c00;
+    }
+
+    body {
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+      background: var(--cream);
+      min-height: 100vh;
+      color: var(--text-dark);
+    }
+
+    /* Header */
+    .header {
+      background: linear-gradient(135deg, var(--navy) 0%, var(--navy-light) 100%);
+      color: white;
+      padding: 1.2rem 2rem;
+      box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+    }
+
+    .header-content {
+      max-width: 1400px;
+      margin: 0 auto;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .logo-section {
+      display: flex;
+      align-items: center;
+      gap: 1rem;
+    }
+
+    .logo-monogram {
+      font-family: 'Cormorant Garamond', serif;
+      font-size: 2.5rem;
+      font-weight: 300;
+      letter-spacing: 0.05em;
+    }
+    .logo-monogram .gold { color: var(--gold); }
+    .logo-monogram .white { color: white; }
+
+    .logo-text {
+      font-family: 'Cormorant Garamond', serif;
+      font-size: 1.3rem;
+      font-weight: 400;
+      letter-spacing: 0.03em;
+    }
+
+    .header-right {
+      display: flex;
+      align-items: center;
+      gap: 1.5rem;
+    }
+
+    .client-name {
+      font-size: 0.95rem;
+      opacity: 0.9;
+    }
+
+    /* Main Content */
+    .container {
+      max-width: 1400px;
+      margin: 0 auto;
+      padding: 2.5rem 2rem;
+    }
+
+    .welcome-section {
+      background: linear-gradient(135deg, var(--gold-light) 0%, var(--gold) 100%);
+      color: white;
+      padding: 2.5rem;
+      border-radius: 12px;
+      margin-bottom: 2.5rem;
+      box-shadow: 0 4px 20px rgba(184, 147, 95, 0.2);
+    }
+
+    .welcome-section h1 {
+      font-family: 'Cormorant Garamond', serif;
+      font-size: 2.5rem;
+      font-weight: 400;
+      margin-bottom: 0.5rem;
+      color: white;
+    }
+
+    .welcome-section p {
+      font-size: 1.1rem;
+      opacity: 0.95;
+    }
+
+    /* Stats Cards */
+    .stats-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+      gap: 1.5rem;
+      margin-bottom: 2.5rem;
+    }
+
+    .stat-card {
+      background: white;
+      padding: 2rem;
+      border-radius: 12px;
+      box-shadow: 0 2px 10px rgba(0,0,0,0.05);
+      border-top: 4px solid var(--gold);
+      transition: transform 0.2s, box-shadow 0.2s;
+    }
+
+    .stat-card:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 4px 20px rgba(0,0,0,0.1);
+    }
+
+    .stat-label {
+      font-size: 0.85rem;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      color: var(--text-light);
+      margin-bottom: 0.5rem;
+    }
+
+    .stat-value {
+      font-size: 2.5rem;
+      font-weight: 700;
+      color: var(--navy);
+      margin-bottom: 0.5rem;
+    }
+
+    .stat-change {
+      font-size: 0.9rem;
+      color: var(--green);
+    }
+
+    /* Tabs */
+    .tabs {
+      display: flex;
+      gap: 0.5rem;
+      margin-bottom: 2rem;
+      border-bottom: 2px solid #e0e0e0;
+    }
+
+    .tab-btn {
+      padding: 1rem 1.5rem;
+      background: none;
+      border: none;
+      border-bottom: 3px solid transparent;
+      font-size: 1rem;
+      font-weight: 500;
+      color: var(--text-light);
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .tab-btn:hover {
+      color: var(--navy);
+    }
+
+    .tab-btn.active {
+      color: var(--gold);
+      border-bottom-color: var(--gold);
+    }
+
+    /* Content Sections */
+    .tab-content {
+      display: none;
+    }
+
+    .tab-content.active {
+      display: block;
+    }
+
+    /* Data Table */
+    .data-table {
+      background: white;
+      border-radius: 12px;
+      overflow: hidden;
+      box-shadow: 0 2px 10px rgba(0,0,0,0.05);
+    }
+
+    .table-header {
+      background: var(--navy);
+      color: white;
+      padding: 1.5rem 2rem;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .table-header h2 {
+      font-family: 'Cormorant Garamond', serif;
+      font-size: 1.5rem;
+      font-weight: 400;
+      color: white;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+    }
+
+    thead {
+      background: var(--cream);
+    }
+
+    th {
+      padding: 1rem 1.5rem;
+      text-align: left;
+      font-size: 0.85rem;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: var(--text-light);
+      font-weight: 600;
+    }
+
+    td {
+      padding: 1.25rem 1.5rem;
+      border-top: 1px solid #f0f0f0;
+    }
+
+    tr:hover {
+      background: var(--cream);
+    }
+
+    .badge {
+      display: inline-block;
+      padding: 0.35rem 0.75rem;
+      border-radius: 20px;
+      font-size: 0.8rem;
+      font-weight: 600;
+    }
+
+    .badge-high { background: #e8f5e9; color: var(--green); }
+    .badge-medium { background: #fff8e1; color: var(--orange); }
+    .badge-new { background: #e3f2fd; color: var(--blue); }
+
+    .score {
+      font-weight: 700;
+      font-size: 1.1rem;
+    }
+
+    .score-high { color: var(--green); }
+    .score-medium { color: var(--orange); }
+
+    /* Loading States */
+    .loading {
+      text-align: center;
+      padding: 3rem;
+      color: var(--text-light);
+    }
+
+    .spinner {
+      border: 3px solid #f0f0f0;
+      border-top: 3px solid var(--gold);
+      border-radius: 50%;
+      width: 40px;
+      height: 40px;
+      animation: spin 1s linear infinite;
+      margin: 0 auto 1rem;
+    }
+
+    @keyframes spin {
+      0% { transform: rotate(0deg); }
+      100% { transform: rotate(360deg); }
+    }
+
+    /* Empty State */
+    .empty-state {
+      text-align: center;
+      padding: 4rem 2rem;
+      color: var(--text-light);
+    }
+
+    .empty-state-icon {
+      font-size: 4rem;
+      margin-bottom: 1rem;
+      opacity: 0.3;
+    }
+
+    /* Button */
+    .btn {
+      padding: 0.75rem 1.5rem;
+      border-radius: 8px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s;
+      border: none;
+      font-size: 0.95rem;
+    }
+
+    .btn-primary {
+      background: linear-gradient(135deg, var(--gold-light) 0%, var(--gold) 100%);
+      color: white;
+    }
+
+    .btn-primary:hover {
+      transform: translateY(-1px);
+      box-shadow: 0 4px 12px rgba(184, 147, 95, 0.3);
+    }
+
+    /* Responsive */
+    @media (max-width: 768px) {
+      .container {
+        padding: 1.5rem 1rem;
+      }
+
+      .stats-grid {
+        grid-template-columns: 1fr;
+      }
+
+      .table-header {
+        flex-direction: column;
+        gap: 1rem;
+        align-items: flex-start;
+      }
+
+      table {
+        font-size: 0.9rem;
+      }
+
+      th, td {
+        padding: 0.75rem 1rem;
+      }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Header -->
+  <div class="header">
+    <div class="header-content">
+      <div class="logo-section">
+        <div class="logo-monogram">
+          <span class="gold">M</span><span class="white">F</span><span class="gold">S</span>
+        </div>
+        <div class="logo-text">Maggie Forbes Strategies</div>
+      </div>
+      <div class="header-right">
+        <div class="client-name" id="client-name">Loading...</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Main Content -->
+  <div class="container">
+
+    <!-- Welcome Section -->
+    <div class="welcome-section">
+      <h1>Welcome Back</h1>
+      <p>Your strategic growth engine is working 24/7 to generate leads, create content, and research your market.</p>
+    </div>
+
+    <!-- Stats Grid -->
+    <div class="stats-grid">
+      <div class="stat-card">
+        <div class="stat-label">New Leads This Week</div>
+        <div class="stat-value" id="leads-count">--</div>
+        <div class="stat-change">↑ From automation</div>
+      </div>
+
+      <div class="stat-card">
+        <div class="stat-label">Content Generated</div>
+        <div class="stat-value" id="content-count">--</div>
+        <div class="stat-change">Ready for review</div>
+      </div>
+
+      <div class="stat-card">
+        <div class="stat-label">Market Research</div>
+        <div class="stat-value" id="research-count">--</div>
+        <div class="stat-change">Reports available</div>
+      </div>
+
+      <div class="stat-card">
+        <div class="stat-label">Avg Fit Score</div>
+        <div class="stat-value" id="avg-fit-score">--</div>
+        <div class="stat-change">High-quality leads</div>
+      </div>
+    </div>
+
+    <!-- Tabs -->
+    <div class="tabs">
+      <button class="tab-btn active" onclick="showTab('leads')">
+        📊 Leads Pipeline
+      </button>
+      <button class="tab-btn" onclick="showTab('content')">
+        📝 Content Library
+      </button>
+      <button class="tab-btn" onclick="showTab('research')">
+        🔬 Market Research
+      </button>
+    </div>
+
+    <!-- Leads Tab -->
+    <div id="leads-tab" class="tab-content active">
+      <div class="data-table">
+        <div class="table-header">
+          <h2>Generated Leads</h2>
+          <button class="btn btn-primary" onclick="exportLeads()">Export to CSV</button>
+        </div>
+        <div id="leads-table-content">
+          <div class="loading">
+            <div class="spinner"></div>
+            <p>Loading your leads...</p>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Content Tab -->
+    <div id="content-tab" class="tab-content">
+      <div class="data-table">
+        <div class="table-header">
+          <h2>Content Library</h2>
+        </div>
+        <div id="content-table-content">
+          <div class="loading">
+            <div class="spinner"></div>
+            <p>Loading your content...</p>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Research Tab -->
+    <div id="research-tab" class="tab-content">
+      <div class="data-table">
+        <div class="table-header">
+          <h2>Market Research Reports</h2>
+        </div>
+        <div id="research-table-content">
+          <div class="loading">
+            <div class="spinner"></div>
+            <p>Loading research reports...</p>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <script>
+    // Initialize Supabase
+    const SUPABASE_URL = 'https://awgxauppcufwftcxrfez.supabase.co';
+    const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImF3Z3hhdXBwY3Vmd2Z0Y3hyZmV6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3MzI1NjYzNDcsImV4cCI6MjA0ODE0MjM0N30.HfqUZ9pXZmAKJQcmUKdQKsYHbPUe_gS31-uOlbFVSO4';
+    const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+    // Get tenant ID from URL or localStorage
+    const urlParams = new URLSearchParams(window.location.search);
+    const tenantId = urlParams.get('tenant') || localStorage.getItem('mfs_tenant_id') || 'maggie-forbes';
+
+    // Tab switching
+    function showTab(tabName) {
+      // Hide all tabs
+      document.querySelectorAll('.tab-content').forEach(tab => {
+        tab.classList.remove('active');
+      });
+      document.querySelectorAll('.tab-btn').forEach(btn => {
+        btn.classList.remove('active');
+      });
+
+      // Show selected tab
+      document.getElementById(`${tabName}-tab`).classList.add('active');
+      event.target.classList.add('active');
+    }
+
+    // Load dashboard data
+    async function loadDashboard() {
+      try {
+        // Set client name
+        document.getElementById('client-name').textContent = 'Premium Client';
+
+        // Load stats
+        await loadStats();
+
+        // Load leads
+        await loadLeads();
+
+        // Load content
+        await loadContent();
+
+        // Load research
+        await loadResearch();
+
+      } catch (error) {
+        console.error('Error loading dashboard:', error);
+      }
+    }
+
+    // Load stats
+    async function loadStats() {
+      try {
+        // Get last 7 days of leads
+        const sevenDaysAgo = new Date(Date.now() - 7*24*60*60*1000).toISOString();
+
+        const { data: leads, error } = await supabase
+          .from('generated_leads')
+          .select('*')
+          .eq('tenant_id', tenantId)
+          .gte('created_at', sevenDaysAgo);
+
+        if (error) throw error;
+
+        // Update stats
+        document.getElementById('leads-count').textContent = leads?.length || 0;
+
+        // Calculate average fit score
+        if (leads && leads.length > 0) {
+          const avgScore = leads.reduce((sum, lead) => sum + (lead.fit_score || 0), 0) / leads.length;
+          document.getElementById('avg-fit-score').textContent = avgScore.toFixed(1) + '/10';
+        }
+
+        // Get content count
+        const { data: content } = await supabase
+          .from('generated_content')
+          .select('id')
+          .eq('tenant_id', tenantId);
+
+        document.getElementById('content-count').textContent = content?.length || 0;
+
+        // Get research count
+        const { data: research } = await supabase
+          .from('market_research')
+          .select('id')
+          .eq('tenant_id', tenantId);
+
+        document.getElementById('research-count').textContent = research?.length || 0;
+
+      } catch (error) {
+        console.error('Error loading stats:', error);
+      }
+    }
+
+    // Load leads
+    async function loadLeads() {
+      try {
+        const { data: leads, error } = await supabase
+          .from('generated_leads')
+          .select('*')
+          .eq('tenant_id', tenantId)
+          .order('created_at', { ascending: false })
+          .limit(50);
+
+        if (error) throw error;
+
+        const container = document.getElementById('leads-table-content');
+
+        if (!leads || leads.length === 0) {
+          container.innerHTML = `
+            <div class="empty-state">
+              <div class="empty-state-icon">📊</div>
+              <h3>No leads yet</h3>
+              <p>Your AI team is working on finding qualified leads for you.</p>
+            </div>
+          `;
+          return;
+        }
+
+        container.innerHTML = `
+          <table>
+            <thead>
+              <tr>
+                <th>Name</th>
+                <th>Company</th>
+                <th>Pain Points</th>
+                <th>Fit Score</th>
+                <th>Urgency</th>
+                <th>Source</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${leads.map(lead => `
+                <tr>
+                  <td><strong>${lead.name || 'N/A'}</strong><br><small style="color: #999;">${lead.email || ''}</small></td>
+                  <td>${lead.company || 'N/A'}</td>
+                  <td style="max-width: 300px; font-size: 0.9rem;">${(lead.pain_points || '').substring(0, 100)}...</td>
+                  <td><span class="score ${lead.fit_score >= 8 ? 'score-high' : 'score-medium'}">${lead.fit_score || 0}/10</span></td>
+                  <td><span class="badge ${lead.urgency === 'urgent' ? 'badge-high' : lead.urgency === 'high' ? 'badge-medium' : 'badge-new'}">${lead.urgency || 'medium'}</span></td>
+                  <td style="font-size: 0.85rem; color: #999;">${lead.platform || lead.source || 'Unknown'}</td>
+                </tr>
+              `).join('')}
+            </tbody>
+          </table>
+        `;
+
+      } catch (error) {
+        console.error('Error loading leads:', error);
+        document.getElementById('leads-table-content').innerHTML = `
+          <div class="empty-state">
+            <p style="color: red;">Error loading leads. Please refresh the page.</p>
+          </div>
+        `;
+      }
+    }
+
+    // Load content
+    async function loadContent() {
+      try {
+        const { data: content, error } = await supabase
+          .from('generated_content')
+          .select('*')
+          .eq('tenant_id', tenantId)
+          .order('created_at', { ascending: false })
+          .limit(20);
+
+        if (error) throw error;
+
+        const container = document.getElementById('content-table-content');
+
+        if (!content || content.length === 0) {
+          container.innerHTML = `
+            <div class="empty-state">
+              <div class="empty-state-icon">📝</div>
+              <h3>No content yet</h3>
+              <p>Your AI team will generate blog posts and social content weekly.</p>
+            </div>
+          `;
+          return;
+        }
+
+        container.innerHTML = `
+          <table>
+            <thead>
+              <tr>
+                <th>Title</th>
+                <th>Type</th>
+                <th>Word Count</th>
+                <th>Status</th>
+                <th>Created</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${content.map(item => `
+                <tr>
+                  <td><strong>${item.title || 'Untitled'}</strong></td>
+                  <td><span class="badge badge-new">${item.content_type || 'blog'}</span></td>
+                  <td>${item.word_count || 0} words</td>
+                  <td><span class="badge badge-medium">${item.status || 'draft'}</span></td>
+                  <td style="font-size: 0.85rem; color: #999;">${new Date(item.created_at).toLocaleDateString()}</td>
+                </tr>
+              `).join('')}
+            </tbody>
+          </table>
+        `;
+
+      } catch (error) {
+        console.error('Error loading content:', error);
+      }
+    }
+
+    // Load research
+    async function loadResearch() {
+      try {
+        const { data: research, error } = await supabase
+          .from('market_research')
+          .select('*')
+          .eq('tenant_id', tenantId)
+          .order('created_at', { ascending: false })
+          .limit(10);
+
+        if (error) throw error;
+
+        const container = document.getElementById('research-table-content');
+
+        if (!research || research.length === 0) {
+          container.innerHTML = `
+            <div class="empty-state">
+              <div class="empty-state-icon">🔬</div>
+              <h3>No research yet</h3>
+              <p>Market research reports will be generated monthly.</p>
+            </div>
+          `;
+          return;
+        }
+
+        container.innerHTML = `
+          <table>
+            <thead>
+              <tr>
+                <th>Title</th>
+                <th>Type</th>
+                <th>Opportunity Score</th>
+                <th>Created</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${research.map(report => `
+                <tr>
+                  <td><strong>${report.title || 'Research Report'}</strong></td>
+                  <td><span class="badge badge-new">${report.research_type || 'analysis'}</span></td>
+                  <td><span class="score score-high">${report.opportunity_score || 0}/10</span></td>
+                  <td style="font-size: 0.85rem; color: #999;">${new Date(report.created_at).toLocaleDateString()}</td>
+                </tr>
+              `).join('')}
+            </tbody>
+          </table>
+        `;
+
+      } catch (error) {
+        console.error('Error loading research:', error);
+      }
+    }
+
+    // Export leads to CSV
+    function exportLeads() {
+      alert('CSV export will download your leads with all details including outreach recommendations.');
+      // TODO: Implement CSV export
+    }
+
+    // Load dashboard on page load
+    loadDashboard();
+
+    // Refresh every 60 seconds
+    setInterval(loadStats, 60000);
+  </script>
+
+</body>
+</html>

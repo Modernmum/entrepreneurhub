@@ -6,21 +6,15 @@
   "scripts": {
     "test": "echo \"No tests yet\""
   },
-  "keywords": [
-    "ai",
-    "automation",
-    "entrepreneur",
-    "anti-big-tech"
-  ],
+  "keywords": ["ai", "automation", "entrepreneur", "anti-big-tech"],
   "author": "Unbound.team",
   "license": "MIT",
   "dependencies": {
-    "@anthropic-ai/sdk": "^0.20.0",
-    "@google/generative-ai": "^0.2.1",
     "@supabase/supabase-js": "^2.39.7",
-    "axios": "^1.6.7",
-    "cheerio": "^1.0.0-rc.12",
+    "@anthropic-ai/sdk": "^0.20.0",
     "openai": "^4.28.0",
-    "puppeteer": "^24.32.0"
+    "@google/generative-ai": "^0.2.1",
+    "axios": "^1.6.7",
+    "cheerio": "^1.0.0-rc.12"
   }
 }
