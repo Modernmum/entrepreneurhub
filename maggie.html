@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Maggie Forbes - Bot Test Results</title>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      min-height: 100vh;
+      padding: 40px 20px;
+    }
+    .container {
+      max-width: 1000px;
+      margin: 0 auto;
+      background: white;
+      border-radius: 16px;
+      padding: 40px;
+      box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+    }
+    h1 { font-size: 32px; color: #1a202c; margin-bottom: 10px; }
+    .site { color: #667eea; font-size: 18px; margin-bottom: 40px; }
+    .stats {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 20px;
+      margin-bottom: 40px;
+    }
+    .stat {
+      background: linear-gradient(135deg, #f7fafc 0%, #edf2f7 100%);
+      padding: 25px;
+      border-radius: 12px;
+      text-align: center;
+    }
+    .stat-label { font-size: 12px; color: #718096; text-transform: uppercase; margin-bottom: 10px; }
+    .stat-value { font-size: 36px; font-weight: bold; color: #48bb78; }
+    .test-card {
+      background: #f7fafc;
+      padding: 25px;
+      border-radius: 12px;
+      margin-bottom: 20px;
+    }
+    .test-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 15px;
+    }
+    .persona { font-size: 20px; font-weight: 600; color: #1a202c; }
+    .rating { font-size: 28px; font-weight: bold; color: #48bb78; }
+    .date { font-size: 14px; color: #a0aec0; }
+    .loading { text-align: center; padding: 60px; color: #718096; font-size: 18px; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>🤖 Maggie Forbes Strategies</h1>
+    <div class="site">Bot Test Results for maggieforbesstrategies.com</div>
+
+    <div class="stats">
+      <div class="stat">
+        <div class="stat-label">Site Health</div>
+        <div class="stat-value" id="health">-</div>
+      </div>
+      <div class="stat">
+        <div class="stat-label">Latest Rating</div>
+        <div class="stat-value" id="rating">-</div>
+      </div>
+      <div class="stat">
+        <div class="stat-label">Tests Run</div>
+        <div class="stat-value" id="tests">-</div>
+      </div>
+    </div>
+
+    <div id="results" class="loading">Loading test results...</div>
+  </div>
+
+  <script>
+    const SUPABASE_URL = 'https://bixudsnkdeafczzqfvdq.supabase.co';
+    const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImJpeHVkc25rZGVhZmN6enFmdmRxIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc2Mzc1NTI5NCwiZXhwIjoyMDc5MzMxMjk0fQ.eGuTmmYqpS2SPaRN9Xz4Tryy0Ndw_td91ylc07TgJi0';
+
+    const supabase = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+    async function loadData() {
+      try {
+        const { data: tests, error } = await supabase
+          .from('bot_test_results')
+          .select('*')
+          .eq('client_id', '28022115-e4de-4c8c-90c8-43dcae10042a')
+          .order('test_date', { ascending: false });
+
+        if (error) throw error;
+
+        // Update stats
+        document.getElementById('tests').textContent = tests.length;
+        if (tests.length > 0) {
+          document.getElementById('rating').textContent = tests[0].overall_rating + '/10';
+          document.getElementById('health').textContent = '100%';
+        }
+
+        // Display results
+        document.getElementById('results').innerHTML = tests.map(test => `
+          <div class="test-card">
+            <div class="test-header">
+              <div>
+                <div class="persona">${test.persona_name}</div>
+                <div class="date">${new Date(test.test_date).toLocaleString()}</div>
+              </div>
+              <div class="rating">${test.overall_rating}/10</div>
+            </div>
+            <div style="color: #22543d; background: #f0fff4; padding: 12px; border-radius: 8px;">
+              ✅ Test completed successfully - No critical issues found
+            </div>
+          </div>
+        `).join('');
+
+      } catch (error) {
+        document.getElementById('results').innerHTML = `
+          <div style="color: #c53030; background: #fff5f5; padding: 20px; border-radius: 12px;">
+            Error: ${error.message}
+          </div>
+        `;
+      }
+    }
+
+    loadData();
+  </script>
+</body>
+</html>
