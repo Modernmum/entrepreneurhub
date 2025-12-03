@@ -205,16 +205,19 @@
 
       try {
         // Look up client by email
-        const response = await fetch(`${SUPABASE_URL}/rest/v1/testing_clients?client_email=eq.${email}`, {
+        const response = await fetch(`${SUPABASE_URL}/rest/v1/testing_clients?client_email=eq.${encodeURIComponent(email)}`, {
           headers: {
             'apikey': SUPABASE_ANON_KEY,
-            'Authorization': `Bearer ${SUPABASE_ANON_KEY}`
+            'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
+            'Content-Type': 'application/json'
           }
         });
 
         const clients = await response.json();
+        console.log('API Response:', clients); // Debug log
 
-        if (!clients || clients.length === 0) {
+        if (!clients || clients.length === 0 || clients.error) {
+          console.error('Client lookup failed:', clients);
           showError('Invalid email or password');
           return;
         }
