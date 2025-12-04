@@ -961,7 +961,11 @@ ${serviceStatus.appointmentMonitor ? '📅 Appointment Monitor: ACTIVE - Trackin
   // Start Empire AGI Brain if available
   if (empireAgiBrain) {
     try {
-      empireAgiBrain.start();
+      // Empire AGI Brain uses run() instead of start()
+      // Don't await - let it run in the background
+      empireAgiBrain.run().catch(err => {
+        console.error('⚠️  Empire AGI Brain error:', err.message);
+      });
       console.log('✅ Empire AGI Brain started - Autonomous business management active');
     } catch (err) {
       console.warn('⚠️  Empire AGI Brain failed to start:', err.message);
@@ -1001,13 +1005,9 @@ process.on('SIGTERM', () => {
     }
   }
 
-  if (empireAgiBrain && empireAgiBrain.stop) {
-    try {
-      empireAgiBrain.stop();
-      console.log('✅ Empire AGI Brain stopped');
-    } catch (err) {
-      console.warn('⚠️  Error stopping Empire AGI Brain:', err.message);
-    }
+  // Empire AGI Brain doesn't have a stop() method - it will stop when process exits
+  if (empireAgiBrain) {
+    console.log('✅ Empire AGI Brain will stop with process exit');
   }
 
   if (appointmentMonitor && appointmentMonitor.stop) {
