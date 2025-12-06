@@ -28,6 +28,7 @@ module.exports = async (req, res) => {
 
     // Save to database
     const saved = [];
+    const errors = [];
     for (const opp of forumOpportunities) {
       const { data, error} = await supabase
         .from('discovered_opportunities')
@@ -55,6 +56,8 @@ module.exports = async (req, res) => {
         saved.push(data);
       } else if (error) {
         console.error('Error saving opportunity:', error.message);
+        errors.push({ title: opp.title, error: error.message });
+        if (errors.length === 1) console.error('Full error:', error);  // Log first full error
       }
     }
 
@@ -67,7 +70,9 @@ module.exports = async (req, res) => {
       summary: {
         total_found: forumOpportunities.length,
         total_saved: saved.length,
-        sources: [...new Set(forumOpportunities.map(o => o.source))]
+        total_errors: errors.length,
+        sources: [...new Set(forumOpportunities.map(o => o.source))],
+        sample_errors: errors.slice(0, 3)  // Show first 3 errors for debugging
       }
     });
 
