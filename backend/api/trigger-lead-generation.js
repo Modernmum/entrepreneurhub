@@ -1,7 +1,8 @@
 // Manual Lead Generation Trigger
 // Call this endpoint to generate leads on-demand
 
-const rssMonitor = require('../services/rss-monitor');
+const forumScraper = require('../services/forum-scraper');
+const leadScraper = require('../services/lead-scraper');
 const { createClient } = require('@supabase/supabase-js');
 
 const supabase = createClient(
@@ -13,11 +14,11 @@ module.exports = async (req, res) => {
   try {
     console.log('🔍 Manual lead generation triggered');
 
-    // Scan RSS feeds for opportunities
-    const opportunities = await rssMonitor.scanAllFeeds();
-    console.log(`   Found ${opportunities.length} opportunities from RSS feeds`);
+    // Scrape forums for REAL opportunities (Reddit, etc.)
+    const forumOpportunities = await forumScraper.scrapeAllForums();
+    console.log(`   Found ${forumOpportunities.length} real opportunities from forums`);
 
-    if (opportunities.length === 0) {
+    if (forumOpportunities.length === 0) {
       return res.json({
         success: true,
         message: 'No new opportunities found',
@@ -27,7 +28,7 @@ module.exports = async (req, res) => {
 
     // Save to database
     const saved = [];
-    for (const opp of opportunities) {
+    for (const opp of forumOpportunities) {
       const { data, error } = await supabase
         .from('discovered_opportunities')
         .insert({
@@ -62,9 +63,9 @@ module.exports = async (req, res) => {
       message: `Generated ${saved.length} new leads`,
       opportunities: saved,
       summary: {
-        total_found: opportunities.length,
+        total_found: forumOpportunities.length,
         total_saved: saved.length,
-        sources: [...new Set(opportunities.map(o => o.source))]
+        sources: [...new Set(forumOpportunities.map(o => o.source))]
       }
     });
 
