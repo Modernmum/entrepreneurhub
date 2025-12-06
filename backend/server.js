@@ -917,6 +917,34 @@ app.get('/api/automation/:tenantSlug/stats', async (req, res) => {
 });
 
 // ============================================================================
+// CALENDLY WEBHOOK ENDPOINTS
+// ============================================================================
+
+let calendlyWebhook;
+try {
+  calendlyWebhook = require('./api/calendly-webhook');
+  console.log('✅ Calendly Webhook loaded');
+} catch (err) {
+  console.warn('⚠️  Calendly Webhook failed to load:', err.message);
+}
+
+// Webhook endpoint - receives events from Calendly
+app.post('/api/calendly/webhook', async (req, res) => {
+  if (!calendlyWebhook) {
+    return res.status(503).json({ error: 'Calendly webhook service not available' });
+  }
+  await calendlyWebhook.handleWebhook(req, res);
+});
+
+// Test endpoint - simulate a Calendly booking
+app.post('/api/calendly/test', async (req, res) => {
+  if (!calendlyWebhook) {
+    return res.status(503).json({ error: 'Calendly webhook service not available' });
+  }
+  await calendlyWebhook.testWebhook(req, res);
+});
+
+// ============================================================================
 // START SERVER
 // ============================================================================
 
