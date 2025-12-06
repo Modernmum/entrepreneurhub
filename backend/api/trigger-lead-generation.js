@@ -29,20 +29,22 @@ module.exports = async (req, res) => {
     // Save to database
     const saved = [];
     for (const opp of forumOpportunities) {
-      const { data, error } = await supabase
+      const { data, error} = await supabase
         .from('discovered_opportunities')
         .insert({
-          source: opp.source || 'rss-feed',
-          source_url: opp.link,
+          source: opp.source || 'Reddit',
+          source_url: opp.url || opp.link,  // Forum scraper uses 'url', RSS uses 'link'
           title: opp.title,
-          description: opp.description,
+          description: opp.text || opp.description || '',  // Forum scraper uses 'text'
           business_area: opp.businessArea || 'General',
           pain_points: opp.painPoints,
           urgency_level: opp.urgency || 'medium',
           fit_score: opp.fitScore || 5,
           metadata: {
             author: opp.author,
-            pubDate: opp.pubDate
+            subreddit: opp.subreddit,
+            score: opp.score,
+            numComments: opp.numComments
           },
           status: 'new'
         })
