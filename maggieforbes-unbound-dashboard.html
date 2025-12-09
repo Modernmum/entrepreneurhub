@@ -6,18 +6,19 @@
     <title>Unbound.Team Dashboard</title>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
-        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #0a0a0a; color: #fff; }
-        .header { background: #111; border-bottom: 1px solid #222; padding: 1rem 2rem; }
-        .header h1 { font-size: 1.5rem; font-weight: 600; }
-        .stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1rem; padding: 2rem; }
-        .stat-card { background: #111; border: 1px solid #222; border-radius: 8px; padding: 1.5rem; }
-        .stat-card h3 { color: #888; font-size: 0.875rem; font-weight: 500; margin-bottom: 0.5rem; }
-        .stat-card .number { font-size: 2rem; font-weight: 700; }
-        .opportunities { padding: 0 2rem 2rem; }
-        .opp-list { background: #111; border: 1px solid #222; border-radius: 8px; overflow: hidden; }
-        .opp-header { display: grid; grid-template-columns: 2fr 1fr 1fr 1fr 1fr; gap: 1rem; padding: 1rem; background: #0a0a0a; border-bottom: 1px solid #222; font-size: 0.875rem; font-weight: 600; color: #888; }
-        .opp-row { display: grid; grid-template-columns: 2fr 1fr 1fr 1fr 1fr; gap: 1rem; padding: 1rem; border-bottom: 1px solid #222; align-items: center; }
-        .opp-row:hover { background: #0f0f0f; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); min-height: 100vh; padding: 0; }
+        .header { background: white; box-shadow: 0 2px 10px rgba(0,0,0,0.1); padding: 20px 30px; margin-bottom: 30px; }
+        .header h1 { font-size: 24px; font-weight: bold; color: #667eea; }
+        .stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1.5rem; padding: 0 30px 30px; max-width: 1400px; margin: 0 auto; }
+        .stat-card { background: white; border-radius: 16px; padding: 25px; box-shadow: 0 10px 30px rgba(0,0,0,0.1); transition: transform 0.2s; }
+        .stat-card:hover { transform: translateY(-5px); }
+        .stat-card h3 { color: #666; font-size: 14px; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 10px; font-weight: 600; }
+        .stat-card .number { font-size: 36px; font-weight: bold; color: #667eea; }
+        .opportunities { padding: 0 30px 30px; max-width: 1400px; margin: 0 auto; }
+        .opp-list { background: white; border-radius: 16px; overflow: hidden; box-shadow: 0 10px 30px rgba(0,0,0,0.1); }
+        .opp-header { display: grid; grid-template-columns: 2fr 1fr 1fr 1fr 1fr; gap: 1rem; padding: 20px; background: #f8f9fa; font-size: 14px; font-weight: 600; color: #666; text-transform: uppercase; letter-spacing: 0.5px; }
+        .opp-row { display: grid; grid-template-columns: 2fr 1fr 1fr 1fr 1fr; gap: 1rem; padding: 20px; border-bottom: 1px solid #e5e7eb; align-items: center; color: #333; }
+        .opp-row:hover { background: #f8f9fa; }
         .opp-row:last-child { border-bottom: none; }
         .score { display: inline-block; padding: 0.25rem 0.75rem; border-radius: 4px; font-size: 0.875rem; font-weight: 600; }
         .score.high { background: #065f46; color: #10b981; }
@@ -27,12 +28,13 @@
         .tier-1 { background: #1e40af; color: #60a5fa; }
         .tier-2 { background: #4338ca; color: #a78bfa; }
         .tier-3 { background: #6b21a8; color: #c084fc; }
-        .loading { text-align: center; padding: 3rem; color: #888; }
+        .loading { text-align: center; padding: 3rem; color: #666; }
+        .opp-row strong { color: #333; font-weight: 600; }
     </style>
 </head>
 <body>
     <div class="header">
-        <h1>🚀 Unbound.Team - Opportunity Dashboard</h1>
+        <h1>Modern Business Mum - Opportunity Dashboard</h1>
     </div>
 
     <div class="stats">
