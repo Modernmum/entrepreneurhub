@@ -114,33 +114,26 @@ Search for real people and profiles.`;
    * CRITICAL: Find contact email for outreach
    */
   async findContactEmail(opportunity) {
-    const query = `Find the contact email address for ${opportunity.company_name}.
+    const domain = opportunity.company_domain || '';
 
-${opportunity.company_domain ? `Website: ${opportunity.company_domain}` : ''}
+    const query = `What is the contact email for ${opportunity.company_name}?
 
-I need to find a REAL, WORKING email address to contact this business. Search for:
+Website: ${domain}
 
-1. The founder/owner's direct email address
-2. Contact email on their website (look for contact page, about page, footer)
-3. Email addresses mentioned on LinkedIn profiles
-4. Email addresses from press releases or interviews
-5. General business email (hello@, contact@, info@)
-6. Any email format patterns for this domain (e.g., firstname@domain.com)
+Look for publicly listed business contact emails on their website. Check:
+- Contact page
+- About page
+- Footer
+- Team page
 
-IMPORTANT:
-- Return ACTUAL email addresses you find, not guesses
-- Prioritize founder/decision-maker emails over generic ones
-- If you find multiple emails, list them all
-- Include where you found each email (source)
+Also determine common email patterns for this business:
+- Is it firstname@${domain}?
+- Is it hello@${domain} or contact@${domain}?
+- What email format do they use?
 
-Format your response as:
-PRIMARY EMAIL: [email address]
-SOURCE: [where you found it]
-CONFIDENCE: [high/medium/low]
+If you find the founder/owner name, what would their email likely be?
 
-ADDITIONAL EMAILS FOUND:
-- [email]: [source]
-- [email]: [source]`;
+Provide the best email address to contact this business for B2B purposes.`;
 
     return await this.askPerplexity(query);
   }

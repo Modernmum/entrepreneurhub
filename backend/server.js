@@ -325,7 +325,7 @@ app.post('/api/discover-company', async (req, res) => {
       .insert({
         company_name: opportunity.company_name,
         company_domain: opportunity.company_domain,
-        overall_score: (scoring.score || 0) * 2.5, // Convert to 0-100 scale
+        overall_score: Math.round((scoring.score || 0) * 2.5), // Convert to 0-100 scale (integer)
         signal_strength_score: 80,
         route_to_outreach: scoring.qualified && scoring.score >= 25,
         priority_tier: scoring.score >= 30 ? 'tier_1' : scoring.score >= 20 ? 'tier_2' : 'tier_3',
