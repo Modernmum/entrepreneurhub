@@ -1,0 +1,40 @@
+# Railway Ignore File
+# Exclude files and directories from Railway deployment
+
+# Node modules (Railway installs these during build)
+node_modules/
+
+# Environment files (set these in Railway dashboard)
+.env
+.env.*
+
+# IDE and system files
+.vscode/
+.idea/
+.DS_Store
+
+# iTerm2 sockets (causing deployment errors)
+.config/
+**/.config/
+**/sockets/
+
+# Git
+.git/
+.gitignore
+
+# Documentation (not needed in production)
+*.md
+!README.md
+
+# Test files
+**/*.test.js
+**/test/
+*.spec.js
+
+# Desktop files
+Desktop/
+
+# Logs
+logs/
+*.log
+npm-debug.log*
