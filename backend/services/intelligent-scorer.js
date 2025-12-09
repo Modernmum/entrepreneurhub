@@ -10,26 +10,31 @@ class IntelligentScorer {
 
   /**
    * STEP 1: Pre-qualification (FILTER FIRST)
-   * Only process if they meet ALL criteria
+   * More lenient - qualify if they show buying signals
    */
   async preQualify(opportunity) {
     const signals = this.detectSignals(opportunity);
 
+    // Check if opportunity has high score from discovery
+    const hasHighScore = (opportunity.overall_score || 0) >= 70;
+    const isRoutedToOutreach = opportunity.route_to_outreach === true;
+
     const qualificationCriteria = {
-      lookingForSolutions: signals.needsHelp || signals.hiring || signals.sourcingSolutions,
-      hasBudget: signals.fundingMentioned || signals.payingForTools || signals.budgetSignals,
-      relevantPainPoint: signals.painPointDetected,
-      reachable: signals.hasContactInfo
+      lookingForSolutions: signals.needsHelp || signals.hiring || signals.sourcingSolutions || hasHighScore,
+      hasBudget: signals.fundingMentioned || signals.payingForTools || signals.budgetSignals || hasHighScore,
+      relevantPainPoint: signals.painPointDetected || hasHighScore,
+      reachable: signals.hasContactInfo || isRoutedToOutreach // Allow outreach-routed leads
     };
 
-    // ALL must be true to qualify
-    const isQualified = Object.values(qualificationCriteria).every(v => v === true);
+    // Qualify if 3 out of 4 criteria are met OR if already marked for outreach
+    const metCriteria = Object.values(qualificationCriteria).filter(v => v === true).length;
+    const isQualified = metCriteria >= 3 || isRoutedToOutreach || hasHighScore;
 
     return {
       qualified: isQualified,
       criteria: qualificationCriteria,
       signals: signals,
-      reason: isQualified ? 'Meets all qualification criteria' : this.getDisqualificationReason(qualificationCriteria)
+      reason: isQualified ? 'Meets qualification criteria' : this.getDisqualificationReason(qualificationCriteria)
     };
   }
 
@@ -100,8 +105,11 @@ class IntelligentScorer {
         'closing deals', 'pipeline', 'prospecting'
       ]),
 
-      // Contact signals
-      hasContactInfo: !!(opportunity.company_domain || opportunity.contact_email)
+      // Contact signals - be more lenient
+      hasContactInfo: !!(opportunity.company_domain || opportunity.contact_email || opportunity.route_to_outreach),
+
+      // Check opportunity_data for additional signals
+      hasOpportunityData: !!(opportunity.opportunity_data && Object.keys(opportunity.opportunity_data).length > 0)
     };
   }
 

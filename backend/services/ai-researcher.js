@@ -191,9 +191,20 @@ Make it highly specific to their situation.`;
   }
 
   /**
-   * Ask Perplexity for research
+   * Ask Perplexity for research (with fallback)
    */
   async askPerplexity(query) {
+    // If no API key, return basic research from available data
+    if (!this.perplexityApiKey) {
+      console.log('   ⚠️  Perplexity API key not configured - using basic research');
+      return {
+        findings: 'Perplexity research unavailable - API key not configured. Using opportunity data only.',
+        sources: [],
+        researched_at: new Date().toISOString(),
+        fallback: true
+      };
+    }
+
     try {
       const response = await axios.post(
         this.perplexityEndpoint,
@@ -216,7 +227,8 @@ Make it highly specific to their situation.`;
           headers: {
             'Authorization': `Bearer ${this.perplexityApiKey}`,
             'Content-Type': 'application/json'
-          }
+          },
+          timeout: 30000
         }
       );
 
@@ -233,8 +245,9 @@ Make it highly specific to their situation.`;
       console.error('Perplexity API error:', error.response?.data || error.message);
       return {
         error: error.message,
-        findings: 'Research unavailable',
-        sources: []
+        findings: 'Research unavailable - API error',
+        sources: [],
+        researched_at: new Date().toISOString()
       };
     }
   }

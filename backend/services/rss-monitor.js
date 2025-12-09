@@ -7,13 +7,24 @@ class RSSMonitor {
       process.env.SUPABASE_URL,
       process.env.SUPABASE_SERVICE_KEY
     );
-    this.parser = new Parser();
+    this.parser = new Parser({
+      timeout: 10000,
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (compatible; UnboundBot/1.0; +https://unbound.team)',
+        'Accept': 'application/rss+xml, application/xml, text/xml, */*'
+      }
+    });
 
+    // More reliable RSS feeds for entrepreneur content
     this.feeds = [
-      'https://www.indiehackers.com/feed',
-      'https://news.ycombinator.com/rss',
-      'https://www.entrepreneur.com/latest.rss',
-      'https://techcrunch.com/feed/'
+      { url: 'https://feeds.feedburner.com/entrepreneur/latest', name: 'Entrepreneur' },
+      { url: 'https://www.smartpassiveincome.com/feed/', name: 'Smart Passive Income' },
+      { url: 'https://blog.hubspot.com/marketing/rss.xml', name: 'HubSpot Marketing' },
+      { url: 'https://copyblogger.com/feed/', name: 'Copyblogger' },
+      { url: 'https://www.groovehq.com/blog/feed', name: 'Groove Blog' },
+      { url: 'https://buffer.com/resources/feed/', name: 'Buffer Blog' },
+      { url: 'https://neilpatel.com/feed/', name: 'Neil Patel' },
+      { url: 'https://www.searchenginejournal.com/feed/', name: 'Search Engine Journal' }
     ];
   }
 
@@ -22,41 +33,64 @@ class RSSMonitor {
     const opportunities = [];
 
     try {
-      for (const feedUrl of this.feeds) {
+      for (const feedConfig of this.feeds) {
         try {
-          console.log(`📡 Fetching ${feedUrl}...`);
-          const feed = await this.parser.parseURL(feedUrl);
+          console.log(`📡 Fetching ${feedConfig.name}...`);
+          const feed = await this.parser.parseURL(feedConfig.url);
 
-          // Analyze recent items (last 10)
-          const recentItems = feed.items.slice(0, 10);
+          // Analyze recent items (last 15)
+          const recentItems = feed.items.slice(0, 15);
+          console.log(`   Found ${recentItems.length} items in ${feedConfig.name}`);
 
           for (const item of recentItems) {
-            const opportunity = this.analyzeItem(item, feed.title);
+            const opportunity = this.analyzeItem(item, feedConfig.name);
             if (opportunity) {
-              // Save to database
+              // Check for duplicates first
+              const { data: existing } = await this.supabase
+                .from('scored_opportunities')
+                .select('id')
+                .eq('company_domain', this.extractDomain(item.link))
+                .eq('company_name', opportunity.title.substring(0, 100))
+                .limit(1);
+
+              if (existing && existing.length > 0) {
+                continue; // Skip duplicate
+              }
+
+              // Save to database with more data
               const { data, error } = await this.supabase
                 .from('scored_opportunities')
                 .insert({
-                  company_name: opportunity.source,
+                  company_name: opportunity.title.substring(0, 255),
                   company_domain: this.extractDomain(item.link),
                   overall_score: opportunity.fit_score * 10,
-                  signal_strength_score: 80,
+                  signal_strength_score: opportunity.urgency === 'high' ? 80 : 50,
                   route_to_outreach: opportunity.fit_score >= 7,
-                  priority_tier: opportunity.fit_score >= 8 ? 'tier_1' : 'tier_2'
+                  priority_tier: opportunity.fit_score >= 8 ? 'tier_1' : 'tier_2',
+                  source: 'rss',
+                  opportunity_data: {
+                    source_feed: feedConfig.name,
+                    url: item.link,
+                    published: item.pubDate || item.isoDate,
+                    pain_point: opportunity.pain_point,
+                    business_area: opportunity.business_area,
+                    content_preview: (item.contentSnippet || '').substring(0, 500)
+                  }
                 })
                 .select();
 
               if (!error && data) {
                 opportunities.push(data[0]);
+                console.log(`   ✅ Saved: ${opportunity.title.substring(0, 50)}...`);
               }
             }
           }
         } catch (error) {
-          console.error(`Error parsing feed ${feedUrl}:`, error.message);
+          console.error(`Error parsing feed ${feedConfig.name}:`, error.message);
         }
       }
 
-      console.log(`✅ Found ${opportunities.length} opportunities from RSS feeds`);
+      console.log(`✅ Found ${opportunities.length} new opportunities from RSS feeds`);
       return opportunities;
     } catch (error) {
       console.error('❌ RSS scan error:', error);
@@ -69,20 +103,33 @@ class RSSMonitor {
     const content = (item.contentSnippet || item.content || '').toLowerCase();
     const text = title + ' ' + content;
 
-    // Look for pain points and business needs
+    // Look for pain points and business needs - expanded keywords
     const painKeywords = [
       'struggling', 'difficult', 'problem', 'issue', 'challenge',
       'need help', 'looking for', 'how to', 'cant figure',
-      'frustrat', 'painful', 'slow', 'broken', 'fail'
+      'frustrat', 'painful', 'slow', 'broken', 'fail',
+      'mistake', 'wrong', 'avoid', 'stop', 'fix',
+      'improve', 'better', 'optimize', 'increase', 'boost',
+      'strategy', 'tips', 'guide', 'secrets', 'ways to'
     ];
 
     const businessKeywords = [
       'startup', 'business', 'saas', 'company', 'revenue',
-      'customer', 'marketing', 'sales', 'growth', 'scale'
+      'customer', 'marketing', 'sales', 'growth', 'scale',
+      'leads', 'conversion', 'traffic', 'email', 'outreach',
+      'clients', 'prospects', 'pipeline', 'funnel', 'roi',
+      'entrepreneur', 'founder', 'agency', 'freelance', 'consulting'
+    ];
+
+    // Action-oriented keywords (people looking for solutions)
+    const actionKeywords = [
+      'get more', 'find', 'acquire', 'generate', 'build',
+      'create', 'launch', 'start', 'grow', 'automate'
     ];
 
     let painScore = 0;
     let businessScore = 0;
+    let actionScore = 0;
 
     painKeywords.forEach(keyword => {
       if (text.includes(keyword)) painScore++;
@@ -92,9 +139,15 @@ class RSSMonitor {
       if (text.includes(keyword)) businessScore++;
     });
 
-    // Only return if there's both pain and business context
-    if (painScore > 0 && businessScore > 0) {
-      const fitScore = Math.min(10, painScore + businessScore);
+    actionKeywords.forEach(keyword => {
+      if (text.includes(keyword)) actionScore++;
+    });
+
+    // More lenient matching - business content from these feeds is usually relevant
+    const totalScore = painScore + businessScore + actionScore;
+
+    if (totalScore >= 3 || businessScore >= 2) {
+      const fitScore = Math.min(10, Math.ceil(totalScore / 2) + 3);
 
       return {
         title: item.title,
@@ -102,7 +155,7 @@ class RSSMonitor {
         url: item.link,
         pain_point: this.extractPainPoint(text),
         business_area: this.detectBusinessArea(text),
-        urgency: painScore >= 2 ? 'high' : 'medium',
+        urgency: painScore >= 2 ? 'high' : (actionScore >= 2 ? 'high' : 'medium'),
         fit_score: fitScore
       };
     }

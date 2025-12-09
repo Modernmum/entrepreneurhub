@@ -349,11 +349,100 @@ app.use((error, req, res, next) => {
   });
 });
 
+// Auto-start agents function
+async function autoStartAgents() {
+  console.log('🤖 Auto-starting autonomous agents...');
+
+  const agentMap = {
+    'gap-finder': './agents/gap-finder-agent.js',
+    'auto-outreach': './agents/auto-outreach-agent.js',
+    'auto-delivery': './agents/auto-delivery-agent.js'
+  };
+
+  for (const [agentName, agentPath] of Object.entries(agentMap)) {
+    try {
+      const agent = spawn('node', [agentPath], {
+        cwd: __dirname,
+        detached: false,
+        stdio: 'pipe',
+        env: process.env
+      });
+
+      agent.stdout.on('data', (data) => {
+        console.log(`[${agentName}] ${data.toString().trim()}`);
+      });
+
+      agent.stderr.on('data', (data) => {
+        console.error(`[${agentName}] ${data.toString().trim()}`);
+      });
+
+      agent.on('exit', (code) => {
+        console.log(`[${agentName}] Exited with code ${code}`);
+        agentStats[agentName].status = 'stopped';
+        delete agentProcesses[agentName];
+
+        // Auto-restart agent after 30 seconds if it crashes
+        if (code !== 0) {
+          console.log(`[${agentName}] Restarting in 30 seconds...`);
+          setTimeout(() => autoStartSingleAgent(agentName, agentPath), 30000);
+        }
+      });
+
+      agentProcesses[agentName] = agent;
+      agentStats[agentName].status = 'running';
+      agentStats[agentName].lastRun = new Date().toISOString();
+      console.log(`✅ ${agentName} agent started`);
+
+    } catch (error) {
+      console.error(`❌ Failed to start ${agentName}:`, error.message);
+    }
+  }
+}
+
+// Auto-start single agent (for restarts)
+function autoStartSingleAgent(agentName, agentPath) {
+  if (agentProcesses[agentName]) return; // Already running
+
+  try {
+    const agent = spawn('node', [agentPath], {
+      cwd: __dirname,
+      detached: false,
+      stdio: 'pipe',
+      env: process.env
+    });
+
+    agent.stdout.on('data', (data) => {
+      console.log(`[${agentName}] ${data.toString().trim()}`);
+    });
+
+    agent.stderr.on('data', (data) => {
+      console.error(`[${agentName}] ${data.toString().trim()}`);
+    });
+
+    agent.on('exit', (code) => {
+      console.log(`[${agentName}] Exited with code ${code}`);
+      agentStats[agentName].status = 'stopped';
+      delete agentProcesses[agentName];
+    });
+
+    agentProcesses[agentName] = agent;
+    agentStats[agentName].status = 'running';
+    agentStats[agentName].lastRun = new Date().toISOString();
+    console.log(`✅ ${agentName} agent restarted`);
+
+  } catch (error) {
+    console.error(`❌ Failed to restart ${agentName}:`, error.message);
+  }
+}
+
 // Start server
 app.listen(PORT, () => {
   console.log(`🚀 Unbound.Team backend running on port ${PORT}`);
   console.log(`📊 Dashboard API ready`);
   console.log(`✅ Environment: ${process.env.RAILWAY_ENVIRONMENT || 'development'}`);
+
+  // Auto-start agents after server is ready (wait 5 seconds for services to initialize)
+  setTimeout(autoStartAgents, 5000);
 });
 
 module.exports = app;

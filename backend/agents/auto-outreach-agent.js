@@ -69,7 +69,8 @@ class AutoOutreachAgent {
         .from('scored_opportunities')
         .select('*')
         .is('outreach_sent', null)
-        .gte('fit_score', 25) // Only process leads with 25+ score
+        .gte('overall_score', 70) // Only process leads with 70+ score (high quality)
+        .eq('route_to_outreach', true) // Must be flagged for outreach
         .limit(10); // Process 10 at a time
 
       if (error) throw error;
@@ -87,13 +88,16 @@ class AutoOutreachAgent {
           console.log(`\n📊 Scoring: ${opp.company_name}`);
           const scoring = await this.scorer.processOpportunity(opp);
 
-          if (!scoring.qualified || scoring.score < 25) {
-            console.log(`   ⏭️  Skipped (score: ${scoring.score})`);
+          // Use overall_score from database if scoring fails
+          const effectiveScore = scoring.score || opp.overall_score || 0;
+
+          if (!scoring.qualified && effectiveScore < 70) {
+            console.log(`   ⏭️  Skipped (score: ${effectiveScore})`);
             await this.markAsProcessed(opp.id, 'skipped_low_score');
             continue;
           }
 
-          console.log(`   ✅ Qualified (${scoring.score}/40)`);
+          console.log(`   ✅ Qualified (score: ${effectiveScore})`);
 
           // Step 2: Research with Perplexity
           console.log(`   🔍 Researching...`);
@@ -103,14 +107,16 @@ class AutoOutreachAgent {
           // Step 3: Generate personalized email
           const email = this.generatePersonalizedEmail(opp, research, scoring);
 
-          // Step 4: Send email (if auto-send enabled)
-          if (autoSendEnabled && process.env.SMTP_USER && process.env.SMTP_PASS) {
+          // Step 4: Send email (if auto-send enabled and email available)
+          if (autoSendEnabled && process.env.SMTP_USER && process.env.SMTP_PASS && opp.contact_email) {
             console.log(`   📧 Sending email...`);
             await this.sendEmail(opp, email);
             console.log(`   ✅ Email sent to ${opp.contact_email}`);
             this.emailsSent++;
           } else {
-            console.log(`   📝 Draft created (auto-send: ${autoSendEnabled})`);
+            const reason = !opp.contact_email ? 'no email address' :
+                          !autoSendEnabled ? 'auto-send disabled' : 'SMTP not configured';
+            console.log(`   📝 Draft created (${reason})`);
           }
 
           // Store in outreach_campaigns

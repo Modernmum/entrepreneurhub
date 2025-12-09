@@ -86,33 +86,49 @@ class GapFinderAgent {
   }
 
   async analyzeOpportunity(opportunity) {
-    // Simple gap analysis based on opportunity scores
+    // Gap analysis based on available opportunity data
     const gaps = [];
+    const score = opportunity.overall_score || 0;
+    const signalStrength = opportunity.signal_strength_score || 0;
+    const data = opportunity.opportunity_data || {};
 
-    if (opportunity.tech_stack_score < 60) {
+    // High score opportunities are looking for solutions
+    if (score >= 80) {
+      gaps.push({
+        type: 'growth',
+        description: 'High-intent prospect actively seeking solutions',
+        solution: 'Autonomous client acquisition system',
+        confidence: 0.9
+      });
+    }
+
+    // Strong signal strength indicates urgent need
+    if (signalStrength >= 40) {
+      gaps.push({
+        type: 'operations',
+        description: 'Strong buying signals - likely facing operational challenges',
+        solution: 'Automation and workflow optimization',
+        confidence: 0.85
+      });
+    }
+
+    // Tier 1 priority means high urgency
+    if (opportunity.priority_tier === 'tier_1') {
       gaps.push({
         type: 'technology',
-        description: 'Outdated or inefficient technology stack',
+        description: 'Priority prospect with technology or growth needs',
         solution: 'Modern automation and integration solutions',
         confidence: 0.8
       });
     }
 
-    if (opportunity.signal_strength_score > 80 && opportunity.revenue_score < 70) {
+    // Medium score with route_to_outreach flag
+    if (score >= 60 && opportunity.route_to_outreach) {
       gaps.push({
         type: 'growth',
-        description: 'Strong signals but revenue constraints',
+        description: 'Qualified prospect ready for outreach',
         solution: 'Revenue optimization and growth strategies',
         confidence: 0.75
-      });
-    }
-
-    if (opportunity.employee_score < 50) {
-      gaps.push({
-        type: 'operations',
-        description: 'Small team facing operational challenges',
-        solution: 'Automation and workflow optimization',
-        confidence: 0.85
       });
     }
 
