@@ -1,0 +1,27 @@
+✅ Notification Service initialized
+
+╔═══════════════════════════════════════════════════════════════╗
+║                      UNBOUND.TEAM API                         ║
+║        Your Autonomous AI Team - Unbound from Big Tech        ║
+╚═══════════════════════════════════════════════════════════════╝
+
+✅ Server running on port 3001
+🌐 API: http://localhost:3001
+📊 Health: http://localhost:3001/health
+💰 AI Stats: http://localhost:3001/api/ai/stats
+📋 Queue Stats: http://localhost:3001/api/queues/stats
+🤖 Automation: http://localhost:3001/api/automation/status
+
+🚀 Ready to solve entrepreneur problems autonomously!
+  
+🚀 Queue worker started
+🤖 Starting Automation Scheduler...
+📅 Scheduled: Weekly partner lead generation (Mon 9am)
+📅 Scheduled: Hourly opportunity discovery
+📅 Scheduled: Daily testimonial collection (10am)
+📅 Scheduled: Monthly revenue calculation (1st at 9am)
+📅 Scheduled: Daily cross-promotion (2pm)
+✅ Automation Scheduler started
+⚠️  No processor for queue: marketResearch
+⚠️  No processor for queue: landingPage
+⚠️  No processor for queue: emailMarketing
