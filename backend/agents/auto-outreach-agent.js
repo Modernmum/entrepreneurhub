@@ -1,6 +1,9 @@
 #!/usr/bin/env node
 
 const { createClient } = require('@supabase/supabase-js');
+const IntelligentScorer = require('../services/intelligent-scorer');
+const AIResearcher = require('../services/ai-researcher');
+const nodemailer = require('nodemailer');
 
 class AutoOutreachAgent {
   constructor() {
@@ -10,10 +13,26 @@ class AutoOutreachAgent {
     );
     this.running = false;
     this.emailsSent = 0;
+
+    // Initialize new services
+    this.scorer = new IntelligentScorer();
+    this.researcher = new AIResearcher();
+
+    // Email transporter
+    this.transporter = nodemailer.createTransport({
+      host: process.env.SMTP_HOST || 'smtp.gmail.com',
+      port: process.env.SMTP_PORT || 587,
+      secure: false,
+      auth: {
+        user: process.env.SMTP_USER,
+        pass: process.env.SMTP_PASS
+      }
+    });
   }
 
   async start() {
     console.log('📧 Auto Outreach Agent starting...');
+    console.log('🔧 Using: Intelligent Scoring + Perplexity Research + Automated Sending');
     this.running = true;
 
     try {
@@ -45,120 +64,174 @@ class AutoOutreachAgent {
 
       const autoSendEnabled = settings?.setting_value === 'true';
 
-      // Get approved gaps OR high-priority gaps for drafting
-      const { data: gaps, error } = await this.supabase
-        .from('market_gaps')
-        .select('*, scored_opportunities(*)')
-        .gte('confidence_score', 0.7)
-        .eq('approved_for_outreach', true)
+      // Get unprocessed opportunities from scored_opportunities
+      const { data: opportunities, error } = await this.supabase
+        .from('scored_opportunities')
+        .select('*')
         .is('outreach_sent', null)
-        .limit(5);
+        .gte('fit_score', 25) // Only process leads with 25+ score
+        .limit(10); // Process 10 at a time
 
       if (error) throw error;
 
-      if (!gaps || gaps.length === 0) {
-        console.log('📭 No approved gaps for outreach');
+      if (!opportunities || opportunities.length === 0) {
+        console.log('📭 No opportunities ready for outreach');
         return;
       }
 
-      console.log(`📬 Preparing outreach for ${gaps.length} approved opportunities...`);
+      console.log(`📬 Processing ${opportunities.length} opportunities...`);
 
-      for (const gap of gaps) {
-        await this.sendOutreach(gap, autoSendEnabled);
+      for (const opp of opportunities) {
+        try {
+          // Step 1: Score the opportunity
+          console.log(`\n📊 Scoring: ${opp.company_name}`);
+          const scoring = await this.scorer.processOpportunity(opp);
+
+          if (!scoring.qualified || scoring.score < 25) {
+            console.log(`   ⏭️  Skipped (score: ${scoring.score})`);
+            await this.markAsProcessed(opp.id, 'skipped_low_score');
+            continue;
+          }
+
+          console.log(`   ✅ Qualified (${scoring.score}/40)`);
+
+          // Step 2: Research with Perplexity
+          console.log(`   🔍 Researching...`);
+          const research = await this.researcher.researchLead(opp);
+          console.log(`   ✅ Research complete`);
+
+          // Step 3: Generate personalized email
+          const email = this.generatePersonalizedEmail(opp, research, scoring);
+
+          // Step 4: Send email (if auto-send enabled)
+          if (autoSendEnabled && process.env.SMTP_USER && process.env.SMTP_PASS) {
+            console.log(`   📧 Sending email...`);
+            await this.sendEmail(opp, email);
+            console.log(`   ✅ Email sent to ${opp.contact_email}`);
+            this.emailsSent++;
+          } else {
+            console.log(`   📝 Draft created (auto-send: ${autoSendEnabled})`);
+          }
+
+          // Store in outreach_campaigns
+          await this.createCampaign(opp, email, research, scoring, autoSendEnabled);
+
+          // Mark as processed
+          await this.markAsProcessed(opp.id, autoSendEnabled ? 'sent' : 'draft');
+
+          // Rate limiting
+          await new Promise(resolve => setTimeout(resolve, 3000));
+
+        } catch (error) {
+          console.error(`   ❌ Error processing ${opp.company_name}:`, error);
+        }
       }
 
-      console.log(`✅ Campaigns created: ${this.emailsSent} (auto-send: ${autoSendEnabled})`);
+      console.log(`\n✅ Outreach complete: ${this.emailsSent} emails sent`);
+
     } catch (error) {
       console.error('Error processing outreach:', error);
     }
   }
 
-  async sendOutreach(gap, autoSendEnabled) {
-    try {
-      // Generate personalized email content
-      const email = await this.generateEmail(gap);
+  generatePersonalizedEmail(opportunity, research, scoring) {
+    const company = opportunity.company_name;
 
-      // Create outreach campaign as DRAFT (requires manual approval to send)
-      const campaignData = {
-        gap_id: gap.id,
-        company_name: gap.company_name,
-        subject: email.subject,
-        body: email.body,
-        status: autoSendEnabled ? 'sent' : 'draft',
-        approved_for_sending: autoSendEnabled
-      };
-
-      // Only set sent_at if auto-send is enabled
-      if (autoSendEnabled) {
-        campaignData.sent_at = new Date().toISOString();
-      }
-
-      const { data, error } = await this.supabase
-        .from('outreach_campaigns')
-        .insert(campaignData)
-        .select();
-
-      if (!error && data) {
-        // Update gap as contacted
-        await this.supabase
-          .from('market_gaps')
-          .update({ outreach_sent: true })
-          .eq('id', gap.id);
-
-        this.emailsSent++;
-
-        if (autoSendEnabled) {
-          console.log(`✉️  Email SENT to ${gap.company_name}`);
-        } else {
-          console.log(`📝 Draft created for ${gap.company_name} (awaiting approval)`);
-        }
-      }
-    } catch (error) {
-      console.error(`Error creating outreach for ${gap.company_name}:`, error);
+    // Extract research findings
+    let companyInfo = '';
+    if (research.companyBackground?.findings) {
+      companyInfo = research.companyBackground.findings.split('\n').slice(0, 2).join(' ').substring(0, 250);
     }
+
+    let painPoint = '';
+    if (research.painPointAnalysis?.findings) {
+      painPoint = research.painPointAnalysis.findings.split('\n').slice(0, 2).join(' ').substring(0, 200);
+    }
+
+    let hook = '';
+    if (research.personalizationHooks?.findings) {
+      hook = research.personalizationHooks.findings.split('\n').slice(0, 2).join(' ').substring(0, 150);
+    }
+
+    // Craft email
+    const subject = `Automating client acquisition for ${company}`;
+
+    let body = `Hi there,\n\n`;
+
+    if (companyInfo) {
+      body += `I came across ${company} and was impressed by what you're building. ${companyInfo}...\n\n`;
+    } else {
+      body += `I came across ${company} and wanted to reach out.\n\n`;
+    }
+
+    if (painPoint) {
+      body += `I understand you're facing challenges with ${painPoint}... That's exactly what we help businesses solve.\n\n`;
+    }
+
+    body += `Unbound builds autonomous client acquisition systems that:\n`;
+    body += `• Automatically discover qualified opportunities in your market\n`;
+    body += `• Research each lead in depth using real-time market intelligence\n`;
+    body += `• Send personalized outreach based on their specific pain points\n`;
+    body += `• Handle initial conversations and book qualified calls\n\n`;
+
+    if (hook) {
+      body += `${hook}...\n\n`;
+    }
+
+    body += `Would you be open to a brief 15-minute conversation to explore if there's a fit?\n\n`;
+    body += `Best regards,\n`;
+    body += `Maggie Forbes\n`;
+    body += `Unbound.Team\n\n`;
+    body += `P.S. This entire email was generated using the same system I'd build for you - from discovery to research to personalization.`;
+
+    return { subject, body };
   }
 
-  async generateEmail(gap) {
-    // Generate personalized email based on gap type
-    const templates = {
-      technology: {
-        subject: `Streamline your tech stack at ${gap.company_name}`,
-        body: `Hi,
+  async sendEmail(opportunity, email) {
+    const info = await this.transporter.sendMail({
+      from: `"Maggie Forbes - Unbound.Team" <${process.env.SMTP_USER}>`,
+      to: opportunity.contact_email,
+      subject: email.subject,
+      text: email.body,
+      html: email.body.replace(/\n/g, '<br>')
+    });
 
-I noticed that ${gap.company_name} might benefit from modern automation solutions.
+    return info;
+  }
 
-We specialize in helping companies like yours modernize their technology stack and improve operational efficiency.
-
-Would you be open to a quick conversation about how we can help?
-
-Best regards,
-Unbound.Team`
-      },
-      growth: {
-        subject: `Unlock revenue growth for ${gap.company_name}`,
-        body: `Hi,
-
-I see ${gap.company_name} has strong market signals. We help companies like yours optimize revenue and accelerate growth.
-
-Would love to share some strategies that might be relevant for your business.
-
-Best regards,
-Unbound.Team`
-      },
-      operations: {
-        subject: `Automate operations at ${gap.company_name}`,
-        body: `Hi,
-
-Running lean can be challenging. We help small teams like yours automate workflows and scale operations efficiently.
-
-Interested in learning how we can help?
-
-Best regards,
-Unbound.Team`
-      }
+  async createCampaign(opportunity, email, research, scoring, sent) {
+    const campaignData = {
+      opportunity_id: opportunity.id,
+      company_name: opportunity.company_name,
+      recipient_email: opportunity.contact_email,
+      subject: email.subject,
+      email_content: email.body,
+      status: sent ? 'sent' : 'draft',
+      fit_score: scoring.score,
+      lead_research: research,
+      scoring_breakdown: scoring.breakdown,
+      sent_at: sent ? new Date().toISOString() : null,
+      created_at: new Date().toISOString()
     };
 
-    return templates[gap.gap_type] || templates.technology;
+    const { data, error } = await this.supabase
+      .from('outreach_campaigns')
+      .insert(campaignData)
+      .select();
+
+    if (error) throw error;
+    return data;
+  }
+
+  async markAsProcessed(opportunityId, status) {
+    await this.supabase
+      .from('scored_opportunities')
+      .update({
+        outreach_sent: true,
+        outreach_status: status,
+        outreach_sent_at: new Date().toISOString()
+      })
+      .eq('id', opportunityId);
   }
 
   stop() {
