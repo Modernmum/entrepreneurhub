@@ -36,6 +36,15 @@ class AutoDeliveryAgent {
     console.log('📦 Processing deliveries...');
 
     try {
+      // Check if auto-delivery is enabled
+      const { data: settings } = await this.supabase
+        .from('system_settings')
+        .select('setting_value')
+        .eq('setting_key', 'auto_delivery_enabled')
+        .single();
+
+      const autoDeliveryEnabled = settings?.setting_value === 'true';
+
       // Get outreach campaigns that got positive responses
       const { data: campaigns, error } = await this.supabase
         .from('outreach_campaigns')
@@ -51,52 +60,64 @@ class AutoDeliveryAgent {
         return;
       }
 
-      console.log(`📬 Processing ${campaigns.length} deliveries...`);
+      console.log(`📬 Processing ${campaigns.length} deliveries... (auto-delivery: ${autoDeliveryEnabled})`);
 
       for (const campaign of campaigns) {
-        await this.deliverSolution(campaign);
+        await this.deliverSolution(campaign, autoDeliveryEnabled);
       }
 
-      console.log(`✅ Total deliveries completed: ${this.deliveriesCompleted}`);
+      console.log(`✅ Total deliveries prepared: ${this.deliveriesCompleted}`);
     } catch (error) {
       console.error('Error processing deliveries:', error);
     }
   }
 
-  async deliverSolution(campaign) {
+  async deliverSolution(campaign, autoDeliveryEnabled) {
     try {
       // Generate solution based on gap type
       const solution = await this.generateSolution(campaign);
 
-      // Create delivery record
+      // Create delivery record as DRAFT (requires manual approval)
+      const deliveryData = {
+        campaign_id: campaign.id,
+        company_name: campaign.company_name,
+        solution_type: solution.type,
+        solution_content: solution.content,
+        delivery_method: solution.method,
+        status: autoDeliveryEnabled ? 'delivered' : 'draft',
+        approved_for_delivery: autoDeliveryEnabled
+      };
+
+      // Only set delivered_at if auto-delivery is enabled
+      if (autoDeliveryEnabled) {
+        deliveryData.delivered_at = new Date().toISOString();
+      }
+
       const { data, error } = await this.supabase
         .from('solution_deliveries')
-        .insert({
-          campaign_id: campaign.id,
-          company_name: campaign.company_name,
-          solution_type: solution.type,
-          solution_content: solution.content,
-          delivery_method: solution.method,
-          status: 'delivered',
-          delivered_at: new Date().toISOString()
-        })
+        .insert(deliveryData)
         .select();
 
       if (!error && data) {
-        // Update campaign as delivered
-        await this.supabase
-          .from('outreach_campaigns')
-          .update({
-            delivery_sent: true,
-            status: 'delivered'
-          })
-          .eq('id', campaign.id);
+        // Only mark as delivered if auto-delivery is enabled
+        if (autoDeliveryEnabled) {
+          await this.supabase
+            .from('outreach_campaigns')
+            .update({
+              delivery_sent: true,
+              status: 'delivered'
+            })
+            .eq('id', campaign.id);
+
+          console.log(`📦 Solution DELIVERED to ${campaign.company_name}`);
+        } else {
+          console.log(`📝 Solution draft created for ${campaign.company_name} (awaiting approval)`);
+        }
 
         this.deliveriesCompleted++;
-        console.log(`📦 Solution delivered to ${campaign.company_name}`);
       }
     } catch (error) {
-      console.error(`Error delivering to ${campaign.company_name}:`, error);
+      console.error(`Error creating delivery for ${campaign.company_name}:`, error);
     }
   }
 

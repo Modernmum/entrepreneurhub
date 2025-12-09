@@ -36,49 +36,66 @@ class AutoOutreachAgent {
     console.log('📨 Processing outreach campaigns...');
 
     try {
-      // Get high-priority gaps that need outreach
+      // Check if auto-outreach is enabled
+      const { data: settings } = await this.supabase
+        .from('system_settings')
+        .select('setting_value')
+        .eq('setting_key', 'auto_outreach_enabled')
+        .single();
+
+      const autoSendEnabled = settings?.setting_value === 'true';
+
+      // Get approved gaps OR high-priority gaps for drafting
       const { data: gaps, error } = await this.supabase
         .from('market_gaps')
         .select('*, scored_opportunities(*)')
         .gte('confidence_score', 0.7)
+        .eq('approved_for_outreach', true)
         .is('outreach_sent', null)
         .limit(5);
 
       if (error) throw error;
 
       if (!gaps || gaps.length === 0) {
-        console.log('📭 No gaps requiring outreach');
+        console.log('📭 No approved gaps for outreach');
         return;
       }
 
-      console.log(`📬 Preparing outreach for ${gaps.length} opportunities...`);
+      console.log(`📬 Preparing outreach for ${gaps.length} approved opportunities...`);
 
       for (const gap of gaps) {
-        await this.sendOutreach(gap);
+        await this.sendOutreach(gap, autoSendEnabled);
       }
 
-      console.log(`✅ Total emails sent: ${this.emailsSent}`);
+      console.log(`✅ Campaigns created: ${this.emailsSent} (auto-send: ${autoSendEnabled})`);
     } catch (error) {
       console.error('Error processing outreach:', error);
     }
   }
 
-  async sendOutreach(gap) {
+  async sendOutreach(gap, autoSendEnabled) {
     try {
       // Generate personalized email content
       const email = await this.generateEmail(gap);
 
-      // Create outreach campaign record
+      // Create outreach campaign as DRAFT (requires manual approval to send)
+      const campaignData = {
+        gap_id: gap.id,
+        company_name: gap.company_name,
+        subject: email.subject,
+        body: email.body,
+        status: autoSendEnabled ? 'sent' : 'draft',
+        approved_for_sending: autoSendEnabled
+      };
+
+      // Only set sent_at if auto-send is enabled
+      if (autoSendEnabled) {
+        campaignData.sent_at = new Date().toISOString();
+      }
+
       const { data, error } = await this.supabase
         .from('outreach_campaigns')
-        .insert({
-          gap_id: gap.id,
-          company_name: gap.company_name,
-          subject: email.subject,
-          body: email.body,
-          status: 'sent',
-          sent_at: new Date().toISOString()
-        })
+        .insert(campaignData)
         .select();
 
       if (!error && data) {
@@ -89,10 +106,15 @@ class AutoOutreachAgent {
           .eq('id', gap.id);
 
         this.emailsSent++;
-        console.log(`✉️  Outreach sent to ${gap.company_name}`);
+
+        if (autoSendEnabled) {
+          console.log(`✉️  Email SENT to ${gap.company_name}`);
+        } else {
+          console.log(`📝 Draft created for ${gap.company_name} (awaiting approval)`);
+        }
       }
     } catch (error) {
-      console.error(`Error sending outreach to ${gap.company_name}:`, error);
+      console.error(`Error creating outreach for ${gap.company_name}:`, error);
     }
   }
 
