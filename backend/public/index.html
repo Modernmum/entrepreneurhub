@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Unbound.Team Dashboard</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #0a0a0a; color: #fff; }
+        .header { background: #111; border-bottom: 1px solid #222; padding: 1rem 2rem; }
+        .header h1 { font-size: 1.5rem; font-weight: 600; }
+        .stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1rem; padding: 2rem; }
+        .stat-card { background: #111; border: 1px solid #222; border-radius: 8px; padding: 1.5rem; }
+        .stat-card h3 { color: #888; font-size: 0.875rem; font-weight: 500; margin-bottom: 0.5rem; }
+        .stat-card .number { font-size: 2rem; font-weight: 700; }
+        .opportunities { padding: 0 2rem 2rem; }
+        .opp-list { background: #111; border: 1px solid #222; border-radius: 8px; overflow: hidden; }
+        .opp-header { display: grid; grid-template-columns: 2fr 1fr 1fr 1fr 1fr; gap: 1rem; padding: 1rem; background: #0a0a0a; border-bottom: 1px solid #222; font-size: 0.875rem; font-weight: 600; color: #888; }
+        .opp-row { display: grid; grid-template-columns: 2fr 1fr 1fr 1fr 1fr; gap: 1rem; padding: 1rem; border-bottom: 1px solid #222; align-items: center; }
+        .opp-row:hover { background: #0f0f0f; }
+        .opp-row:last-child { border-bottom: none; }
+        .score { display: inline-block; padding: 0.25rem 0.75rem; border-radius: 4px; font-size: 0.875rem; font-weight: 600; }
+        .score.high { background: #065f46; color: #10b981; }
+        .score.med { background: #78350f; color: #fbbf24; }
+        .score.low { background: #7f1d1d; color: #ef4444; }
+        .tier { display: inline-block; padding: 0.25rem 0.75rem; border-radius: 4px; font-size: 0.875rem; }
+        .tier-1 { background: #1e40af; color: #60a5fa; }
+        .tier-2 { background: #4338ca; color: #a78bfa; }
+        .tier-3 { background: #6b21a8; color: #c084fc; }
+        .loading { text-align: center; padding: 3rem; color: #888; }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>🚀 Unbound.Team - Opportunity Dashboard</h1>
+    </div>
+
+    <div class="stats">
+        <div class="stat-card">
+            <h3>Total Opportunities</h3>
+            <div class="number" id="total-count">-</div>
+        </div>
+        <div class="stat-card">
+            <h3>High Score (70+)</h3>
+            <div class="number" id="high-score">-</div>
+        </div>
+        <div class="stat-card">
+            <h3>Route to Outreach</h3>
+            <div class="number" id="route-count">-</div>
+        </div>
+        <div class="stat-card">
+            <h3>Tier 1 Priorities</h3>
+            <div class="number" id="tier1-count">-</div>
+        </div>
+    </div>
+
+    <div class="opportunities">
+        <div class="opp-list">
+            <div class="opp-header">
+                <div>Company / Source</div>
+                <div>Score</div>
+                <div>Signal</div>
+                <div>Tier</div>
+                <div>Outreach</div>
+            </div>
+            <div id="opp-rows" class="loading">Loading opportunities...</div>
+        </div>
+    </div>
+
+    <script>
+        async function loadDashboard() {
+            try {
+                const res = await fetch('/api/opportunities?limit=100');
+                const data = await res.json();
+                const opps = data.opportunities || [];
+
+                // Update stats
+                document.getElementById('total-count').textContent = opps.length;
+                document.getElementById('high-score').textContent = opps.filter(o => o.overall_score >= 70).length;
+                document.getElementById('route-count').textContent = opps.filter(o => o.route_to_outreach).length;
+                document.getElementById('tier1-count').textContent = opps.filter(o => o.priority_tier === 'tier_1').length;
+
+                // Render opportunities
+                const rows = opps.map(opp => {
+                    const score = opp.overall_score || 0;
+                    const scoreClass = score >= 70 ? 'high' : score >= 40 ? 'med' : 'low';
+                    const tierClass = opp.priority_tier === 'tier_1' ? 'tier-1' : opp.priority_tier === 'tier_2' ? 'tier-2' : 'tier-3';
+
+                    return `
+                        <div class="opp-row">
+                            <div>
+                                <strong>${opp.company_name || 'Unknown'}</strong><br>
+                                <span style="color: #888; font-size: 0.875rem;">${opp.source || opp.company_domain || '-'}</span>
+                            </div>
+                            <div><span class="score ${scoreClass}">${score}</span></div>
+                            <div>${opp.signal_strength_score || '-'}</div>
+                            <div><span class="tier ${tierClass}">${(opp.priority_tier || 'tier_3').replace('tier_', 'T')}</span></div>
+                            <div>${opp.route_to_outreach ? '✓ Yes' : '✗ No'}</div>
+                        </div>
+                    `;
+                }).join('');
+
+                document.getElementById('opp-rows').innerHTML = rows || '<div class="loading">No opportunities found</div>';
+            } catch (err) {
+                document.getElementById('opp-rows').innerHTML = '<div class="loading">Error loading data: ' + err.message + '</div>';
+            }
+        }
+
+        loadDashboard();
+        setInterval(loadDashboard, 30000); // Refresh every 30s
+    </script>
+</body>
+</html>
