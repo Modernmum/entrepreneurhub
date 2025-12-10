@@ -1,5 +1,6 @@
 const { createClient } = require('@supabase/supabase-js');
 const Parser = require('rss-parser');
+const DomainExtractor = require('./domain-extractor');
 
 class RSSMonitor {
   constructor() {
@@ -14,6 +15,7 @@ class RSSMonitor {
         'Accept': 'application/rss+xml, application/xml, text/xml, */*'
       }
     });
+    this.domainExtractor = new DomainExtractor();
 
     // HIGH-VALUE: Places where real business owners post their startups
     this.businessOwnerFeeds = [
@@ -55,12 +57,26 @@ class RSSMonitor {
               : this.analyzeItem(item, feedConfig.name);
 
             if (opportunity) {
+              // For business owner feeds, extract the REAL company domain from the page
+              let companyDomain = opportunity.company_domain;
+              if (isBusinessOwnerFeed && !companyDomain) {
+                try {
+                  console.log(`   🔍 Extracting real domain for: ${opportunity.company_name || opportunity.title}`);
+                  companyDomain = await this.domainExtractor.extractCompanyDomain(item.link, opportunity.company_name);
+                } catch (err) {
+                  console.log(`   ⚠️  Domain extraction skipped: ${err.message}`);
+                }
+              }
+
+              // Fallback to extracting from link if no domain found
+              const finalDomain = companyDomain || this.extractDomain(item.link);
+
               // Check for duplicates first
               const { data: existing } = await this.supabase
                 .from('scored_opportunities')
                 .select('id')
-                .eq('company_domain', this.extractDomain(item.link))
-                .eq('company_name', opportunity.title.substring(0, 100))
+                .eq('company_domain', finalDomain)
+                .eq('company_name', (opportunity.company_name || opportunity.title).substring(0, 100))
                 .limit(1);
 
               if (existing && existing.length > 0) {
@@ -71,12 +87,15 @@ class RSSMonitor {
               const baseScore = isBusinessOwnerFeed ? 70 : opportunity.fit_score * 10;
               const signalStrength = isBusinessOwnerFeed ? 90 : (opportunity.urgency === 'high' ? 80 : 50);
 
+              // Flag if we couldn't get a real domain (platform domain means needs lookup)
+              const isPlatformDomain = this.domainExtractor.isPlatformDomain(finalDomain);
+
               // Save to database with more data
               const { data, error } = await this.supabase
                 .from('scored_opportunities')
                 .insert({
                   company_name: opportunity.company_name || opportunity.title.substring(0, 255),
-                  company_domain: opportunity.company_domain || this.extractDomain(item.link),
+                  company_domain: finalDomain,
                   overall_score: baseScore,
                   signal_strength_score: signalStrength,
                   route_to_outreach: isBusinessOwnerFeed || opportunity.fit_score >= 7,
@@ -91,7 +110,9 @@ class RSSMonitor {
                     business_area: opportunity.business_area,
                     author: opportunity.author || item.creator || null,
                     content_preview: (item.contentSnippet || '').substring(0, 500),
-                    needs_email_lookup: true  // Flag for email enrichment
+                    needs_email_lookup: true,  // Flag for email enrichment
+                    has_real_domain: !isPlatformDomain,  // Track if we have a real company domain
+                    extracted_domain: companyDomain  // Store extracted domain separately
                   }
                 })
                 .select();

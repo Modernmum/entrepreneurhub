@@ -4,6 +4,7 @@ const { createClient } = require('@supabase/supabase-js');
 const IntelligentScorer = require('../services/intelligent-scorer');
 const AIResearcher = require('../services/ai-researcher');
 const EmailFinder = require('../services/email-finder');
+const DomainExtractor = require('../services/domain-extractor');
 const { Resend } = require('resend');
 
 class AutoOutreachAgent {
@@ -19,6 +20,7 @@ class AutoOutreachAgent {
     this.scorer = new IntelligentScorer();
     this.researcher = new AIResearcher();
     this.emailFinder = new EmailFinder();
+    this.domainExtractor = new DomainExtractor();
 
     // Resend email client
     this.resend = new Resend(process.env.RESEND_API_KEY);
@@ -94,17 +96,50 @@ class AutoOutreachAgent {
 
           console.log(`   ✅ Qualified (score: ${effectiveScore})`);
 
-          // Step 2: Find email if not already discovered
+          // Step 2: Check if we have a platform domain and need to extract real domain
+          let workingDomain = opp.company_domain;
+          const isPlatformDomain = this.domainExtractor.isPlatformDomain(workingDomain);
+
+          if (isPlatformDomain && opp.opportunity_data?.url) {
+            console.log(`   🔍 Extracting real domain from source page...`);
+            try {
+              const extractedDomain = await this.domainExtractor.extractCompanyDomain(
+                opp.opportunity_data.url,
+                opp.company_name
+              );
+              if (extractedDomain && !this.domainExtractor.isPlatformDomain(extractedDomain)) {
+                workingDomain = extractedDomain;
+                console.log(`   ✅ Extracted real domain: ${workingDomain}`);
+                // Update the opportunity with the real domain
+                await this.supabase
+                  .from('scored_opportunities')
+                  .update({
+                    company_domain: workingDomain,
+                    opportunity_data: { ...opp.opportunity_data, extracted_domain: workingDomain, has_real_domain: true }
+                  })
+                  .eq('id', opp.id);
+              } else {
+                console.log(`   ⚠️  Could not extract real domain - skipping this lead`);
+                await this.markAsProcessed(opp.id, 'skipped_no_domain');
+                continue;
+              }
+            } catch (domainErr) {
+              console.log(`   ⚠️  Domain extraction failed: ${domainErr.message}`);
+              await this.markAsProcessed(opp.id, 'skipped_domain_error');
+              continue;
+            }
+          }
+
+          // Step 3: Find email if not already discovered
           let recipientEmail = opp.contact_email || opp.opportunity_data?.discovered_email;
 
-          // Skip platform domains - these are sources, not real company domains
-          const platformDomains = ['producthunt.com', 'reddit.com', 'twitter.com', 'x.com', 'linkedin.com', 'facebook.com', 'instagram.com', 'youtube.com', 'medium.com', 'substack.com', 'github.com', 'indiehackers.com'];
-          const isRealDomain = opp.company_domain && !platformDomains.includes(opp.company_domain.toLowerCase());
+          // Now we should have a real domain - find the email
+          const isRealDomain = workingDomain && !this.domainExtractor.isPlatformDomain(workingDomain);
 
           if (!recipientEmail && isRealDomain) {
-            console.log(`   📧 Finding email for ${opp.company_domain}...`);
+            console.log(`   📧 Finding email for ${workingDomain}...`);
             try {
-              const emailResult = await this.emailFinder.findEmails(opp.company_name, opp.company_domain);
+              const emailResult = await this.emailFinder.findEmails(opp.company_name, workingDomain);
               if (emailResult.primaryEmail) {
                 recipientEmail = emailResult.primaryEmail;
                 console.log(`   ✅ Found email: ${recipientEmail}`);
@@ -113,26 +148,27 @@ class AutoOutreachAgent {
                   .from('scored_opportunities')
                   .update({
                     contact_email: recipientEmail,
+                    company_domain: workingDomain,
                     opportunity_data: { ...opp.opportunity_data, discovered_email: recipientEmail }
                   })
                   .eq('id', opp.id);
               } else {
-                console.log(`   ⚠️  No email found for ${opp.company_domain}`);
+                console.log(`   ⚠️  No email found for ${workingDomain}`);
               }
             } catch (emailErr) {
               console.log(`   ⚠️  Email lookup failed: ${emailErr.message}`);
             }
           }
 
-          // Step 3: Research with Perplexity (skipped if no API key)
+          // Step 4: Research with Perplexity (skipped if no API key)
           console.log(`   🔍 Researching...`);
           const research = await this.researcher.researchLead(opp);
           console.log(`   ✅ Research complete`);
 
-          // Step 4: Generate personalized email
+          // Step 5: Generate personalized email
           const email = this.generatePersonalizedEmail(opp, research, scoring);
 
-          // Step 5: Send email (if auto-send enabled and email available)
+          // Step 6: Send email (if auto-send enabled and email available)
           if (autoSendEnabled && process.env.RESEND_API_KEY && recipientEmail) {
             console.log(`   📧 Sending email via Resend to ${recipientEmail}...`);
             await this.sendEmail({ ...opp, contact_email: recipientEmail }, email);
