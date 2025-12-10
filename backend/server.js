@@ -285,6 +285,77 @@ app.get('/api/agents', (req, res) => {
 });
 
 // ============================================
+// IMPORT LEADS - Bulk import from CSV/Excel
+// ============================================
+app.post('/api/import-leads', async (req, res) => {
+  try {
+    const { leads, source = 'manual_import' } = req.body;
+
+    if (!leads || !Array.isArray(leads)) {
+      return res.status(400).json({ error: 'leads array is required' });
+    }
+
+    console.log(`📥 Importing ${leads.length} leads from ${source}...`);
+
+    const results = { imported: 0, skipped: 0, errors: [] };
+
+    for (const lead of leads) {
+      try {
+        // Require at minimum an email or company name
+        if (!lead.contact_email && !lead.company_name) {
+          results.skipped++;
+          continue;
+        }
+
+        // Check for duplicates by email
+        if (lead.contact_email) {
+          const { data: existing } = await supabase
+            .from('scored_opportunities')
+            .select('id')
+            .eq('contact_email', lead.contact_email)
+            .limit(1);
+
+          if (existing && existing.length > 0) {
+            results.skipped++;
+            continue;
+          }
+        }
+
+        // Insert the lead
+        const { error } = await supabase
+          .from('scored_opportunities')
+          .insert({
+            company_name: lead.company_name || 'Unknown',
+            company_domain: lead.company_domain || '',
+            contact_email: lead.contact_email || null,
+            overall_score: lead.overall_score || 85,
+            signal_strength_score: lead.signal_strength_score || 90,
+            route_to_outreach: lead.route_to_outreach !== false,
+            priority_tier: lead.priority_tier || 'tier_1',
+            source: source,
+            opportunity_data: lead.opportunity_data || {}
+          });
+
+        if (error) {
+          results.errors.push({ lead: lead.company_name, error: error.message });
+        } else {
+          results.imported++;
+        }
+      } catch (err) {
+        results.errors.push({ lead: lead.company_name, error: err.message });
+      }
+    }
+
+    console.log(`✅ Import complete: ${results.imported} imported, ${results.skipped} skipped`);
+    res.json({ success: true, results });
+
+  } catch (error) {
+    console.error('Import error:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// ============================================
 // DISCOVER COMPANY - Full Pipeline Test
 // ============================================
 // Takes a company name, researches it via Perplexity,
