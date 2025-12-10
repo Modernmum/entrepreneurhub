@@ -100,14 +100,17 @@ class AutoOutreachAgent {
           // Step 3: Generate personalized email
           const email = this.generatePersonalizedEmail(opp, research, scoring);
 
+          // Get email from contact_email OR opportunity_data.discovered_email
+          const recipientEmail = opp.contact_email || opp.opportunity_data?.discovered_email;
+
           // Step 4: Send email (if auto-send enabled and email available)
-          if (autoSendEnabled && process.env.RESEND_API_KEY && opp.contact_email) {
-            console.log(`   📧 Sending email via Resend...`);
-            await this.sendEmail(opp, email);
-            console.log(`   ✅ Email sent to ${opp.contact_email}`);
+          if (autoSendEnabled && process.env.RESEND_API_KEY && recipientEmail) {
+            console.log(`   📧 Sending email via Resend to ${recipientEmail}...`);
+            await this.sendEmail({ ...opp, contact_email: recipientEmail }, email);
+            console.log(`   ✅ Email sent to ${recipientEmail}`);
             this.emailsSent++;
           } else {
-            const reason = !opp.contact_email ? 'no email address' :
+            const reason = !recipientEmail ? 'no email address' :
                           !autoSendEnabled ? 'auto-send disabled' : 'Resend API key not configured';
             console.log(`   📝 Draft created (${reason})`);
           }
@@ -203,10 +206,11 @@ class AutoOutreachAgent {
   }
 
   async createCampaign(opportunity, email, research, scoring, sent) {
+    const recipientEmail = opportunity.contact_email || opportunity.opportunity_data?.discovered_email;
     const campaignData = {
       opportunity_id: opportunity.id,
       company_name: opportunity.company_name,
-      recipient_email: opportunity.contact_email,
+      recipient_email: recipientEmail,
       subject: email.subject,
       email_content: email.body,
       status: sent ? 'sent' : 'draft',
