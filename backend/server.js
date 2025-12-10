@@ -636,10 +636,8 @@ app.post('/api/transcript', async (req, res) => {
   }
 });
 
-// Process transcript helper function (stores transcript, sends notification - no AI costs)
+// Process transcript helper function (stores transcript for dashboard - no AI costs, no emails)
 async function processTranscript(webhookData, source) {
-  const { Resend } = require('resend');
-
   // Normalize transcript data from various webhook formats
   const transcript = webhookData.transcript || webhookData.text || webhookData.content || '';
   const attendeeEmail = webhookData.attendee_email || webhookData.attendees?.[0]?.email;
@@ -656,7 +654,7 @@ async function processTranscript(webhookData, source) {
     return { stored: false, error: 'Transcript too short' };
   }
 
-  // Store transcript in database
+  // Store transcript in database for dashboard
   const { data: record, error } = await supabase
     .from('call_transcripts')
     .insert({
@@ -666,6 +664,7 @@ async function processTranscript(webhookData, source) {
       business_name: businessName,
       meeting_title: meetingTitle,
       transcript_text: transcript,
+      status: 'pending_review',
       processed_at: new Date().toISOString()
     })
     .select()
@@ -676,37 +675,9 @@ async function processTranscript(webhookData, source) {
     return { stored: false, error: error.message };
   }
 
-  console.log(`✅ Transcript stored: ${record.id}`);
+  console.log(`✅ Transcript stored: ${record.id} - viewable on dashboard`);
 
-  // Send notification email via Resend
-  if (process.env.RESEND_API_KEY) {
-    try {
-      const resend = new Resend(process.env.RESEND_API_KEY);
-      await resend.emails.send({
-        from: 'MFS System <notifications@modernbusinessmum.com>',
-        to: 'maggie@maggieforbesstrategies.com',
-        subject: `📞 New Call Transcript: ${attendeeName}`,
-        html: `
-          <h2>New Discovery Call Transcript</h2>
-          <p><strong>Client:</strong> ${attendeeName}</p>
-          <p><strong>Email:</strong> ${attendeeEmail || 'Not provided'}</p>
-          <p><strong>Business:</strong> ${businessName || 'Not provided'}</p>
-          <p><strong>Meeting:</strong> ${meetingTitle}</p>
-          <p><strong>Source:</strong> ${source}</p>
-          <hr>
-          <h3>Transcript Preview:</h3>
-          <p style="background:#f5f5f5;padding:15px;border-radius:5px;">${transcript.substring(0, 500)}...</p>
-          <hr>
-          <p>Review and trigger delivery when client is ready.</p>
-        `
-      });
-      console.log('📧 Notification sent to Maggie');
-    } catch (emailErr) {
-      console.error('Email error:', emailErr.message);
-    }
-  }
-
-  return { stored: true, transcriptId: record.id, attendeeName, attendeeEmail };
+  return { stored: true, transcriptId: record.id, attendeeName, attendeeEmail, status: 'pending_review' };
 }
 
 // Start delivery for client
@@ -753,6 +724,51 @@ app.post('/api/deliver', async (req, res) => {
     console.error('❌ Delivery error:', error.message);
     res.status(500).json({ success: false, error: error.message });
   }
+});
+
+// Get transcripts for dashboard
+app.get('/api/transcripts', async (req, res) => {
+  const { status } = req.query;
+
+  let query = supabase
+    .from('call_transcripts')
+    .select('*')
+    .order('processed_at', { ascending: false });
+
+  if (status) {
+    query = query.eq('status', status);
+  }
+
+  const { data, error } = await query;
+
+  if (error) {
+    return res.status(500).json({ success: false, error: error.message });
+  }
+
+  res.json({ success: true, transcripts: data });
+});
+
+// Update transcript status from dashboard
+app.patch('/api/transcripts/:id', async (req, res) => {
+  const { id } = req.params;
+  const { status, notes } = req.body;
+
+  const updates = {};
+  if (status) updates.status = status;
+  if (notes) updates.notes = notes;
+
+  const { data, error } = await supabase
+    .from('call_transcripts')
+    .update(updates)
+    .eq('id', id)
+    .select()
+    .single();
+
+  if (error) {
+    return res.status(500).json({ success: false, error: error.message });
+  }
+
+  res.json({ success: true, transcript: data });
 });
 
 // List available services
