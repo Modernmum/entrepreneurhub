@@ -636,76 +636,36 @@ app.post('/api/transcript', async (req, res) => {
   }
 });
 
-// Process transcript helper function
+// Process transcript helper function (stores transcript, sends notification - no AI costs)
 async function processTranscript(webhookData, source) {
-  const Anthropic = require('@anthropic-ai/sdk').default;
-  const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
+  const { Resend } = require('resend');
 
-  // Normalize transcript data
+  // Normalize transcript data from various webhook formats
   const transcript = webhookData.transcript || webhookData.text || webhookData.content || '';
   const attendeeEmail = webhookData.attendee_email || webhookData.attendees?.[0]?.email;
-  const attendeeName = webhookData.attendee_name;
-  const businessName = webhookData.business_name;
+  const attendeeName = webhookData.attendee_name || webhookData.attendees?.[0]?.name || 'Unknown';
+  const businessName = webhookData.business_name || '';
+  const meetingTitle = webhookData.meeting_title || webhookData.title || 'Discovery Call';
 
   console.log(`Source: ${source}`);
   console.log(`Email: ${attendeeEmail || 'Unknown'}`);
+  console.log(`Name: ${attendeeName}`);
   console.log(`Transcript Length: ${transcript.length} chars\n`);
 
-  if (transcript.length < 100) {
-    return { error: 'Transcript too short', readyToBuy: false };
+  if (transcript.length < 50) {
+    return { stored: false, error: 'Transcript too short' };
   }
 
-  // Analyze with AI
-  const response = await anthropic.messages.create({
-    model: 'claude-sonnet-4-20250514',
-    max_tokens: 2000,
-    messages: [{
-      role: 'user',
-      content: `Analyze this discovery call transcript and extract key information.
-
-TRANSCRIPT:
-${transcript.substring(0, 15000)}
-
-Extract and return as JSON:
-{
-  "clientName": "The client/prospect's name",
-  "businessName": "Their business name",
-  "painPoints": ["List of their main business challenges"],
-  "budget": "Their budget range if mentioned",
-  "urgency": "low/medium/high",
-  "readyToBuy": true/false,
-  "recommendedSolution": "notion_template/custom_template/mvp_build/seo_content/operations_setup/full_coo_service",
-  "summary": "2-3 sentence summary"
-}
-
-Only return valid JSON.`
-    }]
-  });
-
-  let analysis;
-  try {
-    const content = response.content[0].text;
-    const jsonMatch = content.match(/\{[\s\S]*\}/);
-    analysis = jsonMatch ? JSON.parse(jsonMatch[0]) : { error: 'Failed to parse' };
-  } catch (e) {
-    analysis = { error: 'Parse error', readyToBuy: false };
-  }
-
-  console.log('Analysis:', JSON.stringify(analysis, null, 2));
-
-  // Store in database
+  // Store transcript in database
   const { data: record, error } = await supabase
     .from('call_transcripts')
     .insert({
       source,
       attendee_email: attendeeEmail,
-      attendee_name: analysis.clientName || attendeeName,
-      business_name: analysis.businessName || businessName,
+      attendee_name: attendeeName,
+      business_name: businessName,
+      meeting_title: meetingTitle,
       transcript_text: transcript,
-      ai_analysis: analysis,
-      pain_points: analysis.painPoints || [],
-      recommended_solution: analysis.recommendedSolution,
-      ready_to_buy: analysis.readyToBuy || false,
       processed_at: new Date().toISOString()
     })
     .select()
@@ -713,17 +673,40 @@ Only return valid JSON.`
 
   if (error) {
     console.error('DB Error:', error.message);
-  } else {
-    console.log(`✅ Transcript stored: ${record.id}`);
+    return { stored: false, error: error.message };
   }
 
-  // If ready to buy, send notification
-  if (analysis.readyToBuy && attendeeEmail) {
-    console.log('🚀 Client ready to buy - triggering notification');
-    // Could trigger email here via Resend
+  console.log(`✅ Transcript stored: ${record.id}`);
+
+  // Send notification email via Resend
+  if (process.env.RESEND_API_KEY) {
+    try {
+      const resend = new Resend(process.env.RESEND_API_KEY);
+      await resend.emails.send({
+        from: 'MFS System <notifications@modernbusinessmum.com>',
+        to: 'maggie@maggieforbesstrategies.com',
+        subject: `📞 New Call Transcript: ${attendeeName}`,
+        html: `
+          <h2>New Discovery Call Transcript</h2>
+          <p><strong>Client:</strong> ${attendeeName}</p>
+          <p><strong>Email:</strong> ${attendeeEmail || 'Not provided'}</p>
+          <p><strong>Business:</strong> ${businessName || 'Not provided'}</p>
+          <p><strong>Meeting:</strong> ${meetingTitle}</p>
+          <p><strong>Source:</strong> ${source}</p>
+          <hr>
+          <h3>Transcript Preview:</h3>
+          <p style="background:#f5f5f5;padding:15px;border-radius:5px;">${transcript.substring(0, 500)}...</p>
+          <hr>
+          <p>Review and trigger delivery when client is ready.</p>
+        `
+      });
+      console.log('📧 Notification sent to Maggie');
+    } catch (emailErr) {
+      console.error('Email error:', emailErr.message);
+    }
   }
 
-  return analysis;
+  return { stored: true, transcriptId: record.id, attendeeName, attendeeEmail };
 }
 
 // Start delivery for client
