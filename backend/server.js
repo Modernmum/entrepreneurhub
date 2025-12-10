@@ -274,6 +274,16 @@ app.get('/api/agents/:agentName/status', (req, res) => {
   });
 });
 
+// Get ALL agent statuses at once (for dashboard)
+app.get('/api/agents', (req, res) => {
+  const agents = Object.entries(agentStats).map(([name, stats]) => ({
+    name,
+    ...stats,
+    isRunning: !!agentProcesses[name]
+  }));
+  res.json({ success: true, agents });
+});
+
 // ============================================
 // DISCOVER COMPANY - Full Pipeline Test
 // ============================================
