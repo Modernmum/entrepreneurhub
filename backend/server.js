@@ -360,13 +360,112 @@ app.post('/api/import-leads', async (req, res) => {
 });
 
 // ============================================
+// BATCH RESEARCH LEADS - Research unresearched leads
+// ============================================
+const AIResearcher = require('./services/ai-researcher');
+const IntelligentScorer = require('./services/intelligent-scorer');
+const EmailFinder = require('./services/email-finder');
+
+app.post('/api/research-leads', async (req, res) => {
+  const { limit = 10, source } = req.body;
+
+  console.log(`\n🔬 BATCH RESEARCH: Starting research for up to ${limit} leads...`);
+
+  try {
+    const researcher = new AIResearcher();
+
+    // Get unresearched leads (no lead_research in opportunity_data)
+    let query = supabase
+      .from('scored_opportunities')
+      .select('*')
+      .is('outreach_sent', null)
+      .eq('route_to_outreach', true)
+      .gte('overall_score', 70)
+      .limit(limit);
+
+    // Optionally filter by source
+    if (source) {
+      query = query.eq('source', source);
+    }
+
+    const { data: leads, error } = await query;
+
+    if (error) throw error;
+
+    if (!leads || leads.length === 0) {
+      return res.json({ success: true, message: 'No leads to research', researched: 0 });
+    }
+
+    // Filter to only leads without research
+    const unresearched = leads.filter(l => !l.opportunity_data?.lead_research);
+
+    console.log(`📋 Found ${unresearched.length} unresearched leads out of ${leads.length}`);
+
+    const results = { researched: 0, skipped: 0, errors: [] };
+
+    for (const lead of unresearched) {
+      try {
+        console.log(`\n🔍 Researching: ${lead.company_name}`);
+
+        // Research the lead
+        const research = await researcher.researchLead(lead);
+
+        // Update the opportunity with research data
+        const updatedOpportunityData = {
+          ...lead.opportunity_data,
+          lead_research: {
+            researched_at: new Date().toISOString(),
+            company_background: research.companyBackground?.findings || null,
+            pain_points: research.painPointAnalysis?.findings || null,
+            decision_maker: research.decisionMaker?.findings || null,
+            contact_discovery: research.contactDiscovery?.findings || null,
+            recent_activity: research.recentActivity?.findings || null,
+            market_context: research.marketContext?.findings || null,
+            personalization_hooks: research.personalizationHooks?.findings || null,
+            recommended_approach: research.recommendedApproach?.findings || null
+          }
+        };
+
+        // If Perplexity found an email, add it
+        if (research.contactDiscovery?.findings) {
+          const emailMatch = research.contactDiscovery.findings.match(/([a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,})/);
+          if (emailMatch && !updatedOpportunityData.discovered_email) {
+            updatedOpportunityData.discovered_email = emailMatch[1];
+            console.log(`   📧 Found email via research: ${emailMatch[1]}`);
+          }
+        }
+
+        await supabase
+          .from('scored_opportunities')
+          .update({ opportunity_data: updatedOpportunityData })
+          .eq('id', lead.id);
+
+        results.researched++;
+        console.log(`   ✅ Research saved for ${lead.company_name}`);
+
+        // Rate limit - 2 seconds between research calls
+        await new Promise(resolve => setTimeout(resolve, 2000));
+
+      } catch (err) {
+        console.error(`   ❌ Error researching ${lead.company_name}:`, err.message);
+        results.errors.push({ company: lead.company_name, error: err.message });
+      }
+    }
+
+    console.log(`\n✅ Batch research complete: ${results.researched} researched`);
+    res.json({ success: true, results });
+
+  } catch (error) {
+    console.error('Batch research error:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// ============================================
 // DISCOVER COMPANY - Full Pipeline Test
 // ============================================
 // Takes a company name, researches it via Perplexity,
 // scores it, and runs it through the full pipeline
-const AIResearcher = require('./services/ai-researcher');
-const IntelligentScorer = require('./services/intelligent-scorer');
-const EmailFinder = require('./services/email-finder');
 
 app.post('/api/discover-company', async (req, res) => {
   const { company_name, company_domain, contact_email } = req.body;

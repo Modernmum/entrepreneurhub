@@ -81,6 +81,12 @@ class AutoOutreachAgent {
 
       for (const opp of opportunities) {
         try {
+          // Step 0: Check if lead has been researched
+          if (!opp.opportunity_data?.lead_research) {
+            console.log(`\n⏭️  Skipping ${opp.company_name} - not yet researched`);
+            continue; // Don't mark as processed - will be picked up after research
+          }
+
           // Step 1: Score the opportunity
           console.log(`\n📊 Scoring: ${opp.company_name}`);
           const scoring = await this.scorer.processOpportunity(opp);
@@ -160,10 +166,17 @@ class AutoOutreachAgent {
             }
           }
 
-          // Step 4: Research with Perplexity (skipped if no API key)
-          console.log(`   🔍 Researching...`);
-          const research = await this.researcher.researchLead(opp);
-          console.log(`   ✅ Research complete`);
+          // Step 4: Use existing research data (already researched before outreach)
+          console.log(`   🔍 Using existing research data...`);
+          const storedResearch = opp.opportunity_data?.lead_research || {};
+          const research = {
+            companyBackground: { findings: storedResearch.company_background },
+            painPointAnalysis: { findings: storedResearch.pain_points },
+            decisionMaker: { findings: storedResearch.decision_maker },
+            personalizationHooks: { findings: storedResearch.personalization_hooks },
+            recommendedApproach: { findings: storedResearch.recommended_approach }
+          };
+          console.log(`   ✅ Research loaded`);
 
           // Step 5: Generate personalized email
           const email = this.generatePersonalizedEmail(opp, research, scoring);
