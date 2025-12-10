@@ -2,12 +2,76 @@ const express = require('express');
 const cors = require('cors');
 const { createClient } = require('@supabase/supabase-js');
 const { spawn } = require('child_process');
+const Stripe = require('stripe');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
 
+// Initialize Stripe
+const stripe = process.env.STRIPE_SECRET_KEY ? new Stripe(process.env.STRIPE_SECRET_KEY) : null;
+
 // Middleware
 app.use(cors());
+
+// Stripe webhook needs raw body - must come before express.json()
+app.post('/webhook/stripe', express.raw({ type: 'application/json' }), async (req, res) => {
+  if (!stripe) {
+    return res.status(500).json({ error: 'Stripe not configured' });
+  }
+
+  const sig = req.headers['stripe-signature'];
+  let event;
+
+  try {
+    event = stripe.webhooks.constructEvent(req.body, sig, process.env.STRIPE_WEBHOOK_SECRET);
+  } catch (err) {
+    console.log('⚠️ Stripe webhook signature failed:', err.message);
+    return res.status(400).send(`Webhook Error: ${err.message}`);
+  }
+
+  // Handle payment completed
+  if (event.type === 'checkout.session.completed') {
+    const session = event.data.object;
+    console.log(`💰 Payment received! Session: ${session.id}`);
+
+    const customerEmail = session.customer_details?.email || session.customer_email;
+    const customerName = session.customer_details?.name;
+    const amountPaid = session.amount_total / 100;
+
+    if (customerEmail) {
+      // Create client record after payment
+      const { data: client, error } = await supabase
+        .from('mfs_clients')
+        .insert({
+          business_name: customerName || 'New Client',
+          contact_email: customerEmail,
+          service_type: session.metadata?.service_type || 'notion_template',
+          status: 'active',
+          delivery_status: 'pending',
+          source: 'stripe',
+          delivery_details: {
+            stripe_session_id: session.id,
+            amount_paid: amountPaid,
+            payment_date: new Date().toISOString()
+          },
+          onboarded_at: new Date().toISOString()
+        })
+        .select()
+        .single();
+
+      if (error) {
+        console.error('❌ Client creation error:', error.message);
+      } else {
+        console.log(`✅ Client created after payment: ${client.id}`);
+        console.log(`📧 Email: ${customerEmail}`);
+        console.log(`💵 Amount: $${amountPaid}`);
+      }
+    }
+  }
+
+  res.json({ received: true });
+});
+
 app.use(express.json());
 app.use(express.static('public'));
 
@@ -48,7 +112,9 @@ app.get('/health', (req, res) => {
       SUPABASE_URL: !!process.env.SUPABASE_URL,
       SUPABASE_KEY: !!process.env.SUPABASE_KEY,
       SUPABASE_SERVICE_KEY: !!process.env.SUPABASE_SERVICE_KEY,
-      ANTHROPIC_API_KEY: !!process.env.ANTHROPIC_API_KEY
+      ANTHROPIC_API_KEY: !!process.env.ANTHROPIC_API_KEY,
+      STRIPE_SECRET_KEY: !!process.env.STRIPE_SECRET_KEY,
+      STRIPE_WEBHOOK_SECRET: !!process.env.STRIPE_WEBHOOK_SECRET
     }
   });
 });
