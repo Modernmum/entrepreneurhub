@@ -97,7 +97,11 @@ class AutoOutreachAgent {
           // Step 2: Find email if not already discovered
           let recipientEmail = opp.contact_email || opp.opportunity_data?.discovered_email;
 
-          if (!recipientEmail && opp.company_domain && opp.company_domain !== 'producthunt.com') {
+          // Skip platform domains - these are sources, not real company domains
+          const platformDomains = ['producthunt.com', 'reddit.com', 'twitter.com', 'x.com', 'linkedin.com', 'facebook.com', 'instagram.com', 'youtube.com', 'medium.com', 'substack.com', 'github.com', 'indiehackers.com'];
+          const isRealDomain = opp.company_domain && !platformDomains.includes(opp.company_domain.toLowerCase());
+
+          if (!recipientEmail && isRealDomain) {
             console.log(`   📧 Finding email for ${opp.company_domain}...`);
             try {
               const emailResult = await this.emailFinder.findEmails(opp.company_name, opp.company_domain);
