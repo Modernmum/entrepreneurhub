@@ -42,10 +42,11 @@ class AIResearcher {
 
   /**
    * Single consolidated Perplexity call - all research in one request
+   * Updated for Maggie Forbes Strategies - Enterprise Growth Consulting
    */
   async consolidatedResearch(opportunity) {
     const domain = opportunity.company_domain || '';
-    const query = `Research this business for B2B outreach:
+    const query = `Research this business for B2B outreach from an enterprise growth consultant:
 
 Company: ${opportunity.company_name}
 ${domain ? `Website: ${domain}` : ''}
@@ -53,27 +54,31 @@ ${opportunity.contact_email ? `Contact: ${opportunity.contact_email}` : ''}
 
 Provide a CONCISE research report with these sections:
 
-1. COMPANY BACKGROUND (2-3 sentences): What they do, their stage/size, industry
+1. COMPANY BACKGROUND (2-3 sentences): What they do, their approximate revenue/size ($3M-$25M range ideal), how long in business, industry
 
-2. PAIN POINTS (2-3 bullet points): Their likely challenges with client acquisition, marketing, or growth
+2. PAIN POINTS (2-3 bullet points): Signs they may be hitting a growth ceiling:
+   - Leadership dependency (founder doing everything)
+   - Relationship-dependent revenue (no systematic sales process)
+   - Infrastructure that doesn't scale (manual processes, no systems)
+   - Team that can't operate without founder involvement
 
-3. DECISION MAKER: Name and role of founder/owner if findable
+3. DECISION MAKER: Name, role, and any indicators of being founder-led or owner-operated
 
-4. PERSONALIZATION HOOKS (2-3 specific details): Recent activity, achievements, or unique aspects we can reference
+4. PERSONALIZATION HOOKS (2-3 specific details): Recent achievements, growth milestones, speaking engagements, books authored, industry recognition
 
-5. RECOMMENDED APPROACH (1-2 sentences): Best angle to pitch autonomous client acquisition systems
+5. RECOMMENDED APPROACH (1-2 sentences): Best angle to discuss architecting systems for enterprise growth without operational chaos
 
-Keep each section brief and actionable. Focus on what's relevant for cold B2B outreach.`;
+Keep each section brief and actionable. Focus on what's relevant for high-touch executive outreach.`;
 
     const result = await this.askPerplexity(query);
 
     if (result.fallback) {
       return {
-        company_background: `${opportunity.company_name} - details from LinkedIn import`,
-        pain_points: 'Based on industry: likely needs help with lead generation and client acquisition',
+        company_background: `${opportunity.company_name} - established business (details pending research)`,
+        pain_points: 'Potential growth ceiling indicators: founder involvement in daily operations, relationship-dependent revenue',
         decision_maker: opportunity.contact_name || 'Unknown',
-        personalization_hooks: `Works in ${opportunity.industry || 'their industry'}`,
-        recommended_approach: 'Focus on automating their client acquisition process',
+        personalization_hooks: `Leader in ${opportunity.industry || 'their industry'}`,
+        recommended_approach: 'Focus on building scalable growth infrastructure',
         sources: [],
         raw_response: result.findings
       };
@@ -263,24 +268,30 @@ Provide specific, quotable details.`;
 
   /**
    * Generate recommended outreach approach
+   * Updated for Maggie Forbes Strategies
    */
   async generateApproach(research) {
     const query = `Based on this research:
 
 ${JSON.stringify(research, null, 2)}
 
-Create an outreach strategy for Unbound.Team.
+Create an outreach strategy for Maggie Forbes Strategies.
 
-Unbound offers: Autonomous client acquisition systems - we discover, qualify, and convert leads automatically for businesses.
+Maggie Forbes Strategies helps leaders of established organizations ($3M-$25M) who've hit a growth ceiling. They architect intelligent growth systems that create predictable opportunity flow without operational chaos.
+
+They solve "The Architecture Gap":
+- Leadership Dependency (founder doing everything)
+- Relationship-Dependent Revenue (no systematic pipeline)
+- Infrastructure That Doesn't Scale (manual processes)
 
 Provide:
-1. A personalized opening line referencing their specific situation
-2. The exact problem we solve for them (based on their pain points)
-3. Why Unbound is uniquely positioned to help them
-4. A compelling call to action
-5. The best timing/urgency angle
+1. A personalized opening line referencing their specific achievements or situation
+2. The specific growth ceiling indicator we've identified (based on their pain points)
+3. How systematic infrastructure could transform their situation
+4. A compelling call to action for a consultation
+5. The best angle given their industry and stage
 
-Make it highly specific to their situation.`;
+Make it highly specific to their situation as an established leader.`;
 
     return await this.askPerplexity(query);
   }

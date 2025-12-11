@@ -750,38 +750,47 @@ function generateDiscoveryEmail(opportunity, research, scoring) {
 
   let hook = '';
   if (research.personalizationHooks?.findings) {
-    hook = research.personalizationHooks.findings.split('\n').slice(0, 1).join(' ').substring(0, 100);
+    hook = research.personalizationHooks.findings.split('\n').slice(0, 1).join(' ').substring(0, 150);
   }
 
-  const subject = `Automating client acquisition for ${company}`;
+  // Get decision maker name if available
+  let firstName = '';
+  if (research.decisionMaker?.findings) {
+    const dmMatch = research.decisionMaker.findings.match(/([A-Z][a-z]+)\s+[A-Z]/);
+    if (dmMatch) firstName = dmMatch[1];
+  }
 
-  let body = `Hi there,\n\n`;
+  const subject = `${company} - growth without the chaos`;
 
-  if (companyInfo) {
-    body += `I came across ${company} and was impressed by what you're building. ${companyInfo}...\n\n`;
+  let body = firstName ? `Hi ${firstName},\n\n` : `Hi,\n\n`;
+
+  // Opening with personalization hook
+  if (hook) {
+    body += `${hook} - impressive work building ${company}.\n\n`;
+  } else if (companyInfo) {
+    body += `I came across ${company} - ${companyInfo.substring(0, 100)}...\n\n`;
   } else {
     body += `I came across ${company} and wanted to reach out.\n\n`;
   }
 
+  // Address the growth ceiling
+  body += `Most organizations between $3M and $25M hit a ceiling - not from lack of capability, but from infrastructure that wasn't designed to scale.\n\n`;
+
   if (painPoint) {
-    body += `I understand you may be facing challenges with ${painPoint}... That's exactly what we help businesses solve.\n\n`;
+    body += `What I've observed in your space: ${painPoint.substring(0, 120)}...\n\n`;
   }
 
-  body += `Unbound builds autonomous client acquisition systems that:\n`;
-  body += `• Automatically discover qualified opportunities in your market\n`;
-  body += `• Research each lead in depth using real-time market intelligence\n`;
-  body += `• Send personalized outreach based on their specific pain points\n`;
-  body += `• Handle initial conversations and book qualified calls\n\n`;
+  body += `I work with leaders of established organizations who face what I call "The Architecture Gap":\n\n`;
+  body += `- Strategic decisions that all flow through you\n`;
+  body += `- Revenue dependent on relationships rather than systems\n`;
+  body += `- Technology creating more work instead of leverage\n\n`;
 
-  if (hook) {
-    body += `${hook}...\n\n`;
-  }
+  body += `I architect intelligent growth systems that create predictable opportunity flow - without operational chaos.\n\n`;
 
-  body += `Would you be open to a brief 15-minute conversation to explore if there's a fit?\n\n`;
-  body += `Best regards,\n`;
+  body += `Would a brief conversation make sense to see if there's alignment?\n\n`;
+  body += `Best,\n`;
   body += `Maggie Forbes\n`;
-  body += `Unbound.Team\n\n`;
-  body += `P.S. This entire outreach was generated using the same autonomous system I'd build for you.`;
+  body += `Maggie Forbes Strategies`;
 
   return { subject, body };
 }
