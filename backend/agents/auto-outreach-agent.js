@@ -1,10 +1,16 @@
 #!/usr/bin/env node
 
+/**
+ * Auto Outreach Agent for Maggie Forbes Strategies
+ *
+ * Processes leads from mfs_leads table:
+ * 1. Finds researched leads that haven't been emailed
+ * 2. Generates personalized emails using research data
+ * 3. Sends via Resend (if enabled)
+ * 4. Tracks all sent emails to prevent duplicates
+ */
+
 const { createClient } = require('@supabase/supabase-js');
-const IntelligentScorer = require('../services/intelligent-scorer');
-const AIResearcher = require('../services/ai-researcher');
-const EmailFinder = require('../services/email-finder');
-const DomainExtractor = require('../services/domain-extractor');
 const { Resend } = require('resend');
 
 class AutoOutreachAgent {
@@ -15,12 +21,7 @@ class AutoOutreachAgent {
     );
     this.running = false;
     this.emailsSent = 0;
-
-    // Initialize new services
-    this.scorer = new IntelligentScorer();
-    this.researcher = new AIResearcher();
-    this.emailFinder = new EmailFinder();
-    this.domainExtractor = new DomainExtractor();
+    this.emailsSkipped = 0;
 
     // Resend email client
     this.resend = new Resend(process.env.RESEND_API_KEY);
@@ -28,19 +29,19 @@ class AutoOutreachAgent {
   }
 
   async start() {
-    console.log('📧 Auto Outreach Agent starting...');
-    console.log('🔧 Using: Intelligent Scoring + Perplexity Research + Automated Sending');
+    console.log('📧 MFS Auto Outreach Agent starting...');
+    console.log('🎯 Target: mfs_leads table with research data');
     this.running = true;
 
     try {
       await this.processOutreach();
 
-      // Run every 10 minutes
+      // Run every 15 minutes
       setInterval(async () => {
         if (this.running) {
           await this.processOutreach();
         }
-      }, 10 * 60 * 1000);
+      }, 15 * 60 * 1000);
 
     } catch (error) {
       console.error('❌ Outreach Agent error:', error);
@@ -49,7 +50,7 @@ class AutoOutreachAgent {
   }
 
   async processOutreach() {
-    console.log('📨 Processing outreach campaigns...');
+    console.log('\n📨 Processing MFS outreach campaigns...');
 
     try {
       // Check if auto-outreach is enabled
@@ -60,363 +61,205 @@ class AutoOutreachAgent {
         .single();
 
       const autoSendEnabled = settings?.setting_value === 'true';
+      console.log(`   Auto-send: ${autoSendEnabled ? 'ENABLED' : 'DISABLED (drafts only)'}`);
 
-      // Get unprocessed opportunities from scored_opportunities
-      const { data: opportunities, error } = await this.supabase
-        .from('scored_opportunities')
+      // Get leads from mfs_leads that:
+      // 1. Have been researched (lead_research is not null)
+      // 2. Have an email address
+      // 3. Haven't been emailed yet (outreach_status is null or 'pending')
+      const { data: leads, error } = await this.supabase
+        .from('mfs_leads')
         .select('*')
-        .is('outreach_sent', null)
-        .gte('overall_score', 70) // Only process leads with 70+ score (high quality)
-        .eq('route_to_outreach', true) // Must be flagged for outreach
-        .limit(10); // Process 10 at a time
+        .not('lead_research', 'is', null)
+        .not('contact_email', 'is', null)
+        .or('outreach_status.is.null,outreach_status.eq.pending')
+        .order('fit_score', { ascending: false })
+        .limit(5); // Process 5 at a time to be safe
 
-      if (error) throw error;
-
-      if (!opportunities || opportunities.length === 0) {
-        console.log('📭 No opportunities ready for outreach');
+      if (error) {
+        console.error('Database error:', error);
         return;
       }
 
-      console.log(`📬 Processing ${opportunities.length} opportunities...`);
+      if (!leads || leads.length === 0) {
+        console.log('📭 No leads ready for outreach');
+        return;
+      }
 
-      for (const opp of opportunities) {
+      console.log(`📬 Found ${leads.length} leads ready for outreach`);
+
+      for (const lead of leads) {
         try {
-          // Step 0: Check if lead has LinkedIn data OR has been researched
-          const hasLinkedInData = opp.opportunity_data?.contact_first_name || opp.opportunity_data?.job_title;
-          const hasResearch = opp.opportunity_data?.lead_research;
-
-          if (!hasLinkedInData && !hasResearch) {
-            console.log(`\n⏭️  Skipping ${opp.company_name} - no LinkedIn data and not researched`);
-            continue; // Don't mark as processed - will be picked up after research
-          }
-
-          if (hasLinkedInData) {
-            console.log(`\n📧 Processing LinkedIn lead: ${opp.company_name} (${opp.opportunity_data?.job_title || 'No title'})`);
-          }
-
-          // Step 1: Score the opportunity
-          console.log(`\n📊 Scoring: ${opp.company_name}`);
-          const scoring = await this.scorer.processOpportunity(opp);
-
-          // Use overall_score from database if scoring fails
-          const effectiveScore = scoring.score || opp.overall_score || 0;
-
-          if (!scoring.qualified && effectiveScore < 70) {
-            console.log(`   ⏭️  Skipped (score: ${effectiveScore})`);
-            await this.markAsProcessed(opp.id, 'skipped_low_score');
+          // Double-check we haven't already emailed this person
+          const alreadySent = await this.checkAlreadySent(lead.contact_email);
+          if (alreadySent) {
+            console.log(`   ⏭️  Already emailed ${lead.contact_email} - skipping`);
+            await this.markLeadStatus(lead.id, 'already_sent');
+            this.emailsSkipped++;
             continue;
           }
 
-          console.log(`   ✅ Qualified (score: ${effectiveScore})`);
+          console.log(`\n📧 Processing: ${lead.company_name} (${lead.contact_name})`);
 
-          // Step 2: Check if we have a platform domain and need to extract real domain
-          let workingDomain = opp.company_domain;
-          const isPlatformDomain = this.domainExtractor.isPlatformDomain(workingDomain);
+          // Generate personalized email using research
+          const email = this.generateMFSEmail(lead);
 
-          if (isPlatformDomain && opp.opportunity_data?.url) {
-            console.log(`   🔍 Extracting real domain from source page...`);
+          // Send email (if auto-send enabled)
+          let sent = false;
+          if (autoSendEnabled && process.env.RESEND_API_KEY) {
+            console.log(`   📤 Sending to ${lead.contact_email}...`);
             try {
-              const extractedDomain = await this.domainExtractor.extractCompanyDomain(
-                opp.opportunity_data.url,
-                opp.company_name
-              );
-              if (extractedDomain && !this.domainExtractor.isPlatformDomain(extractedDomain)) {
-                workingDomain = extractedDomain;
-                console.log(`   ✅ Extracted real domain: ${workingDomain}`);
-                // Update the opportunity with the real domain
-                await this.supabase
-                  .from('scored_opportunities')
-                  .update({
-                    company_domain: workingDomain,
-                    opportunity_data: { ...opp.opportunity_data, extracted_domain: workingDomain, has_real_domain: true }
-                  })
-                  .eq('id', opp.id);
-              } else {
-                console.log(`   ⚠️  Could not extract real domain - skipping this lead`);
-                await this.markAsProcessed(opp.id, 'skipped_no_domain');
-                continue;
-              }
-            } catch (domainErr) {
-              console.log(`   ⚠️  Domain extraction failed: ${domainErr.message}`);
-              await this.markAsProcessed(opp.id, 'skipped_domain_error');
+              await this.sendEmail(lead, email);
+              sent = true;
+              this.emailsSent++;
+              console.log(`   ✅ Email sent successfully`);
+            } catch (sendErr) {
+              console.error(`   ❌ Send failed: ${sendErr.message}`);
+              await this.markLeadStatus(lead.id, 'send_failed');
               continue;
             }
-          }
-
-          // Step 3: Find email if not already discovered
-          let recipientEmail = opp.contact_email || opp.opportunity_data?.discovered_email;
-
-          // Now we should have a real domain - find the email
-          const isRealDomain = workingDomain && !this.domainExtractor.isPlatformDomain(workingDomain);
-
-          if (!recipientEmail && isRealDomain) {
-            console.log(`   📧 Finding email for ${workingDomain}...`);
-            try {
-              const emailResult = await this.emailFinder.findEmails(opp.company_name, workingDomain);
-              if (emailResult.primaryEmail) {
-                recipientEmail = emailResult.primaryEmail;
-                console.log(`   ✅ Found email: ${recipientEmail}`);
-                // Update the opportunity with discovered email
-                await this.supabase
-                  .from('scored_opportunities')
-                  .update({
-                    contact_email: recipientEmail,
-                    company_domain: workingDomain,
-                    opportunity_data: { ...opp.opportunity_data, discovered_email: recipientEmail }
-                  })
-                  .eq('id', opp.id);
-              } else {
-                console.log(`   ⚠️  No email found for ${workingDomain}`);
-              }
-            } catch (emailErr) {
-              console.log(`   ⚠️  Email lookup failed: ${emailErr.message}`);
-            }
-          }
-
-          // Step 4: Use existing research data (already researched before outreach)
-          console.log(`   🔍 Using existing research data...`);
-          const storedResearch = opp.opportunity_data?.lead_research || {};
-          const research = {
-            companyBackground: { findings: storedResearch.company_background },
-            painPointAnalysis: { findings: storedResearch.pain_points },
-            decisionMaker: { findings: storedResearch.decision_maker },
-            personalizationHooks: { findings: storedResearch.personalization_hooks },
-            recommendedApproach: { findings: storedResearch.recommended_approach }
-          };
-          console.log(`   ✅ Research loaded`);
-
-          // Step 5: Generate personalized email
-          const email = this.generatePersonalizedEmail(opp, research, scoring);
-
-          // Step 6: Send email (if auto-send enabled and email available)
-          if (autoSendEnabled && process.env.RESEND_API_KEY && recipientEmail) {
-            console.log(`   📧 Sending email via Resend to ${recipientEmail}...`);
-            await this.sendEmail({ ...opp, contact_email: recipientEmail }, email);
-            console.log(`   ✅ Email sent to ${recipientEmail}`);
-            this.emailsSent++;
           } else {
-            const reason = !recipientEmail ? 'no email address' :
-                          !autoSendEnabled ? 'auto-send disabled' : 'Resend API key not configured';
-            console.log(`   📝 Draft created (${reason})`);
+            console.log(`   📝 Draft created (auto-send disabled)`);
           }
 
           // Store in outreach_campaigns
-          await this.createCampaign(opp, email, research, scoring, autoSendEnabled);
+          await this.createCampaign(lead, email, sent);
 
-          // Mark as processed
-          await this.markAsProcessed(opp.id, autoSendEnabled ? 'sent' : 'draft');
+          // Update lead status
+          await this.markLeadStatus(lead.id, sent ? 'sent' : 'draft');
 
-          // Rate limiting
-          await new Promise(resolve => setTimeout(resolve, 3000));
+          // Rate limiting - 5 seconds between sends
+          await new Promise(resolve => setTimeout(resolve, 5000));
 
         } catch (error) {
-          console.error(`   ❌ Error processing ${opp.company_name}:`, error);
+          console.error(`   ❌ Error processing ${lead.company_name}:`, error.message);
+          await this.markLeadStatus(lead.id, 'error');
         }
       }
 
-      console.log(`\n✅ Outreach complete: ${this.emailsSent} emails sent`);
+      console.log(`\n✅ Outreach batch complete: ${this.emailsSent} sent, ${this.emailsSkipped} skipped`);
 
     } catch (error) {
       console.error('Error processing outreach:', error);
     }
   }
 
-  generatePersonalizedEmail(opportunity, research, scoring) {
-    // Use LinkedIn-only personalization if we have LinkedIn data
-    const oppData = opportunity.opportunity_data || {};
-    const hasLinkedInData = oppData.contact_first_name || oppData.job_title;
+  /**
+   * Check if we've already sent an email to this address
+   */
+  async checkAlreadySent(email) {
+    if (!email) return false;
 
-    if (hasLinkedInData) {
-      return this.generateLinkedInEmail(opportunity);
+    const { data, error } = await this.supabase
+      .from('outreach_campaigns')
+      .select('id')
+      .eq('recipient_email', email)
+      .eq('status', 'sent')
+      .limit(1);
+
+    if (error) {
+      console.error('Error checking sent status:', error);
+      return false;
     }
 
-    // Fallback to research-based email if no LinkedIn data
-    return this.generateResearchEmail(opportunity, research);
+    return data && data.length > 0;
   }
 
   /**
-   * Generate personalized email using LinkedIn data directly - NO API calls
-   * This is the $0 approach similar to Apollo/Instantly/Lemlist
+   * Generate personalized email for MFS - using research data
    */
-  generateLinkedInEmail(opportunity) {
-    const oppData = opportunity.opportunity_data || {};
-    const firstName = oppData.contact_first_name || 'there';
-    const fullName = oppData.contact_full_name || '';
-    const jobTitle = oppData.job_title || '';
-    const company = opportunity.company_name || 'your company';
+  generateMFSEmail(lead) {
+    const company = lead.company_name;
+    const research = lead.lead_research || {};
 
-    // Detect role category for personalized messaging
-    const roleCategory = this.detectRoleCategory(jobTitle);
-    const painPoint = this.inferPainPoint(roleCategory, jobTitle);
-    const valueHook = this.getValueHook(roleCategory);
+    // Get first name
+    let firstName = '';
+    if (lead.contact_name) {
+      firstName = lead.contact_name.split(' ')[0];
+    }
 
-    // Personalized subject lines based on role
-    const subjects = {
-      'executive': `${firstName}, a client acquisition system for ${company}`,
-      'founder': `Quick question about ${company}'s growth, ${firstName}`,
-      'consultant': `${firstName} - how consultants are automating client acquisition`,
-      'coach': `${firstName}, filling your coaching calendar automatically`,
-      'sales': `${firstName}, automating the top-of-funnel for ${company}`,
-      'marketing': `${firstName} - AI-powered lead gen for ${company}`,
-      'default': `${firstName}, automating client acquisition for ${company}`
-    };
+    // Extract research data
+    const background = research.company_background || '';
+    const painPoints = research.pain_points || '';
+    const hooks = research.personalization_hooks || '';
 
-    const subject = subjects[roleCategory] || subjects.default;
+    // Find years in business
+    const yearsMatch = background.match(/(\d+)\+?\s*years?/i) || background.match(/founded\s*(?:in\s*)?(\d{4})/i);
+    const years = yearsMatch ? (yearsMatch[1].length === 4 ? (2025 - parseInt(yearsMatch[1])) : yearsMatch[1]) : null;
 
-    // Build personalized body
-    let body = `Hi ${firstName},\n\n`;
+    // Identify specific pain point from research
+    let specificPain = '';
+    let solution = '';
 
-    // Role-specific opening
-    if (roleCategory === 'founder' || roleCategory === 'executive') {
-      body += `As ${jobTitle ? `a ${jobTitle}` : 'a leader'} at ${company}, I imagine your time is precious - so I'll be brief.\n\n`;
-    } else if (roleCategory === 'consultant' || roleCategory === 'coach') {
-      body += `${company} came up as a business that might benefit from automating client acquisition. ${painPoint}\n\n`;
-    } else if (jobTitle) {
-      body += `${company} came up while I was researching businesses that could benefit from automated lead generation.\n\n`;
+    const painLower = painPoints.toLowerCase();
+    if (painLower.includes('leadership dependency') || painLower.includes('founder') || painLower.includes('owner-operated')) {
+      specificPain = "you're still the one everyone turns to for the big decisions";
+      solution = "building a leadership layer that can carry the weight";
+    } else if (painLower.includes('relationship-dependent') || painLower.includes('relationship dependent')) {
+      specificPain = "your best clients came through relationships you personally built";
+      solution = "creating a pipeline that doesn't depend on your personal network";
+    } else if (painLower.includes('infrastructure') || painLower.includes('manual') || painLower.includes('scale')) {
+      specificPain = "the systems that got you here won't get you to the next level";
+      solution = "architecting infrastructure that scales without adding complexity";
+    } else if (painLower.includes('team') || painLower.includes('staff')) {
+      specificPain = "your team needs you in the room to deliver at your standard";
+      solution = "building systems so your team can operate at your level";
     } else {
-      body += `${company} came up as a business that might be a good fit for what we do.\n\n`;
+      specificPain = "you've built something valuable but it still runs through you";
+      solution = "creating systems that let you step back without stepping down";
     }
 
-    // Value proposition
-    body += `We build autonomous client acquisition systems that:\n`;
-    body += `• Find qualified prospects in your target market automatically\n`;
-    body += `• Send personalized outreach based on each lead's specific situation\n`;
-    body += `• Book qualified calls directly on your calendar\n`;
-    body += `• Run 24/7 without any manual effort\n\n`;
+    // Find personalization hook
+    let personalHook = '';
+    if (hooks && hooks.length > 20) {
+      const hookPatterns = [
+        /(?:recognized|award|won|received|named|featured|speaker|keynote|author|published|grew|scaled|expanded)[^.]{10,80}\./gi,
+        /(?:founded|established|built|created)[^.]{5,50}(?:in \d{4}|over \d+)[^.]*\./gi,
+        /(?:\d+\s*years?)[^.]{10,60}\./gi
+      ];
 
-    // Role-specific closer
-    if (valueHook) {
-      body += `${valueHook}\n\n`;
+      for (const pattern of hookPatterns) {
+        const matches = hooks.match(pattern);
+        if (matches && matches[0].length > 15) {
+          personalHook = matches[0].replace(/^\*+\s*/, '').replace(/^\s*-\s*/, '').trim();
+          if (personalHook.length > 20 && personalHook.length < 120) break;
+          personalHook = '';
+        }
+      }
     }
 
-    body += `Would a quick 15-minute call make sense to see if there's a fit?\n\n`;
-    body += `Best,\n`;
-    body += `Maggie Forbes\n`;
-    body += `Unbound.Team`;
+    // Build subject line
+    const subject = firstName
+      ? `${firstName} - a question about what's next`
+      : `${company} - growth without the chaos`;
+
+    // Build personalized email body
+    let body = firstName ? `Hi ${firstName},\n\n` : `Hi,\n\n`;
+
+    // Opening - reference something specific
+    if (personalHook) {
+      body += `I noticed ${personalHook.toLowerCase().startsWith('you') ? '' : 'that '}${personalHook.toLowerCase()}\n\n`;
+      body += `Leaders who've achieved that level often hit a similar inflection point: `;
+    } else if (years && years > 5) {
+      body += `${years} years building ${company} - that's not luck, that's proof you know how to create something that works.\n\n`;
+      body += `At this stage, the question usually shifts from "how do I grow?" to `;
+    } else {
+      body += `I've been looking at ${company} and the business you've built.\n\n`;
+      body += `My guess is `;
+    }
+
+    body += `${specificPain}.\n\n`;
+    body += `That's the gap I help established leaders close - ${solution}.\n\n`;
+    body += `If that resonates, I'd enjoy a conversation about what the next chapter could look like for ${company}.\n\n`;
+    body += `Best,\nMaggie Forbes\nMaggie Forbes Strategies`;
 
     return { subject, body };
   }
 
-  /**
-   * Detect role category from job title for personalization
-   */
-  detectRoleCategory(jobTitle) {
-    if (!jobTitle) return 'default';
-    const title = jobTitle.toLowerCase();
-
-    if (title.includes('ceo') || title.includes('chief') || title.includes('president') || title.includes('managing director')) {
-      return 'executive';
-    }
-    if (title.includes('founder') || title.includes('owner') || title.includes('co-founder')) {
-      return 'founder';
-    }
-    if (title.includes('consultant') || title.includes('advisor') || title.includes('strategist')) {
-      return 'consultant';
-    }
-    if (title.includes('coach') || title.includes('trainer') || title.includes('facilitator') || title.includes('speaker')) {
-      return 'coach';
-    }
-    if (title.includes('sales') || title.includes('business development') || title.includes('account')) {
-      return 'sales';
-    }
-    if (title.includes('marketing') || title.includes('growth') || title.includes('demand')) {
-      return 'marketing';
-    }
-    return 'default';
-  }
-
-  /**
-   * Infer pain point based on role
-   */
-  inferPainPoint(roleCategory, jobTitle) {
-    const painPoints = {
-      'executive': 'Scaling client acquisition is often the bottleneck to growth.',
-      'founder': 'Most founders I talk to spend too much time on sales instead of building.',
-      'consultant': 'Most consultants I talk to are great at delivery but struggle to keep the pipeline full.',
-      'coach': 'The challenge I hear from coaches: spending more time marketing than actually coaching.',
-      'sales': 'The manual prospecting grind takes time away from actually closing deals.',
-      'marketing': 'Generating quality leads that actually convert is always the challenge.',
-      'default': ''
-    };
-    return painPoints[roleCategory] || '';
-  }
-
-  /**
-   * Get value hook based on role
-   */
-  getValueHook(roleCategory) {
-    const hooks = {
-      'executive': 'Our clients typically see their calendar filled with qualified meetings within the first 2 weeks.',
-      'founder': 'Imagine waking up to a calendar full of qualified calls - without lifting a finger.',
-      'consultant': 'Our consultant clients typically add 5-10 qualified conversations per week to their pipeline.',
-      'coach': 'Several coaches we work with have completely eliminated cold outreach from their routine.',
-      'sales': 'We handle the top-of-funnel so you can focus on what you do best - closing.',
-      'marketing': 'Think of it as a lead gen engine that runs itself.',
-      'default': ''
-    };
-    return hooks[roleCategory] || '';
-  }
-
-  /**
-   * Fallback: Generate email from Perplexity research
-   */
-  generateResearchEmail(opportunity, research) {
-    const company = opportunity.company_name;
-
-    // Extract research findings
-    let companyInfo = '';
-    if (research?.companyBackground?.findings) {
-      companyInfo = research.companyBackground.findings.split('\n').slice(0, 2).join(' ').substring(0, 250);
-    }
-
-    let painPoint = '';
-    if (research?.painPointAnalysis?.findings) {
-      painPoint = research.painPointAnalysis.findings.split('\n').slice(0, 2).join(' ').substring(0, 200);
-    }
-
-    let hook = '';
-    if (research?.personalizationHooks?.findings) {
-      hook = research.personalizationHooks.findings.split('\n').slice(0, 2).join(' ').substring(0, 150);
-    }
-
-    // Craft email
-    const subject = `Automating client acquisition for ${company}`;
-
-    let body = `Hi there,\n\n`;
-
-    if (companyInfo) {
-      body += `I came across ${company} and was impressed by what you're building. ${companyInfo}...\n\n`;
-    } else {
-      body += `I came across ${company} and wanted to reach out.\n\n`;
-    }
-
-    if (painPoint) {
-      body += `I understand you're facing challenges with ${painPoint}... That's exactly what we help businesses solve.\n\n`;
-    }
-
-    body += `Unbound builds autonomous client acquisition systems that:\n`;
-    body += `• Automatically discover qualified opportunities in your market\n`;
-    body += `• Research each lead in depth using real-time market intelligence\n`;
-    body += `• Send personalized outreach based on their specific pain points\n`;
-    body += `• Handle initial conversations and book qualified calls\n\n`;
-
-    if (hook) {
-      body += `${hook}...\n\n`;
-    }
-
-    body += `Would you be open to a brief 15-minute conversation to explore if there's a fit?\n\n`;
-    body += `Best regards,\n`;
-    body += `Maggie Forbes\n`;
-    body += `Unbound.Team\n\n`;
-    body += `P.S. This entire email was generated using the same system I'd build for you - from discovery to research to personalization.`;
-
-    return { subject, body };
-  }
-
-  async sendEmail(opportunity, email) {
+  async sendEmail(lead, email) {
     const { data, error } = await this.resend.emails.send({
       from: `Maggie Forbes <${this.fromEmail}>`,
-      to: opportunity.contact_email,
+      to: lead.contact_email,
       subject: email.subject,
       text: email.body,
       html: email.body.replace(/\n/g, '<br>')
@@ -429,44 +272,45 @@ class AutoOutreachAgent {
     return data;
   }
 
-  async createCampaign(opportunity, email, research, scoring, sent) {
-    const recipientEmail = opportunity.contact_email || opportunity.opportunity_data?.discovered_email;
+  async createCampaign(lead, email, sent) {
     const campaignData = {
-      opportunity_id: opportunity.id,
-      company_name: opportunity.company_name,
-      recipient_email: recipientEmail,
+      opportunity_id: lead.id,
+      company_name: lead.company_name,
+      recipient_email: lead.contact_email,
       subject: email.subject,
       email_content: email.body,
       status: sent ? 'sent' : 'draft',
-      fit_score: scoring.score,
-      lead_research: research,
-      scoring_breakdown: scoring.breakdown,
+      fit_score: lead.fit_score,
+      lead_research: lead.lead_research,
       sent_at: sent ? new Date().toISOString() : null,
       created_at: new Date().toISOString()
     };
 
-    const { data, error } = await this.supabase
+    const { error } = await this.supabase
       .from('outreach_campaigns')
-      .insert(campaignData)
-      .select();
+      .insert(campaignData);
 
-    if (error) throw error;
-    return data;
+    if (error) {
+      console.error('Error creating campaign:', error);
+    }
   }
 
-  async markAsProcessed(opportunityId, status) {
-    await this.supabase
-      .from('scored_opportunities')
+  async markLeadStatus(leadId, status) {
+    const { error } = await this.supabase
+      .from('mfs_leads')
       .update({
-        outreach_sent: true,
         outreach_status: status,
-        outreach_sent_at: new Date().toISOString()
+        outreach_updated_at: new Date().toISOString()
       })
-      .eq('id', opportunityId);
+      .eq('id', leadId);
+
+    if (error) {
+      console.error('Error updating lead status:', error);
+    }
   }
 
   stop() {
-    console.log('🛑 Auto Outreach Agent stopping...');
+    console.log('🛑 MFS Auto Outreach Agent stopping...');
     this.running = false;
     process.exit(0);
   }

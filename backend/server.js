@@ -965,6 +965,152 @@ app.post('/api/send-email', async (req, res) => {
   }
 });
 
+// Preview outreach emails - shows what would be sent without actually sending
+app.get('/api/preview-outreach', async (req, res) => {
+  try {
+    const limit = parseInt(req.query.limit) || 10;
+
+    // Get leads that would be processed by auto-outreach
+    const { data: leads, error } = await supabase
+      .from('mfs_leads')
+      .select('*')
+      .not('lead_research', 'is', null)
+      .not('contact_email', 'is', null)
+      .or('outreach_status.is.null,outreach_status.eq.pending')
+      .order('fit_score', { ascending: false })
+      .limit(limit);
+
+    if (error) {
+      return res.status(500).json({ error: error.message });
+    }
+
+    if (!leads || leads.length === 0) {
+      return res.json({
+        success: true,
+        message: 'No leads ready for outreach',
+        previews: []
+      });
+    }
+
+    // Generate preview emails for each lead
+    const previews = leads.map(lead => {
+      const email = generateMFSPreviewEmail(lead);
+      return {
+        lead: {
+          id: lead.id,
+          company: lead.company_name,
+          contact_name: lead.contact_name,
+          contact_email: lead.contact_email,
+          fit_score: lead.fit_score,
+          source: lead.source
+        },
+        research_summary: {
+          background: (lead.lead_research?.company_background || '').substring(0, 200),
+          pain_points: (lead.lead_research?.pain_points || '').substring(0, 200),
+          hooks: (lead.lead_research?.personalization_hooks || '').substring(0, 200)
+        },
+        email: {
+          subject: email.subject,
+          body: email.body,
+          to: lead.contact_email,
+          from: 'Maggie Forbes <maggie@maggieforbesstrategies.com>'
+        }
+      };
+    });
+
+    res.json({
+      success: true,
+      total_ready: leads.length,
+      previews: previews
+    });
+
+  } catch (error) {
+    console.error('Preview outreach error:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Helper function for email preview generation (same as agent uses)
+function generateMFSPreviewEmail(lead) {
+  const company = lead.company_name;
+  const research = lead.lead_research || {};
+
+  let firstName = '';
+  if (lead.contact_name) {
+    firstName = lead.contact_name.split(' ')[0];
+  }
+
+  const background = research.company_background || '';
+  const painPoints = research.pain_points || '';
+  const hooks = research.personalization_hooks || '';
+
+  const yearsMatch = background.match(/(\d+)\+?\s*years?/i) || background.match(/founded\s*(?:in\s*)?(\d{4})/i);
+  const years = yearsMatch ? (yearsMatch[1].length === 4 ? (2025 - parseInt(yearsMatch[1])) : yearsMatch[1]) : null;
+
+  let specificPain = '';
+  let solution = '';
+
+  const painLower = painPoints.toLowerCase();
+  if (painLower.includes('leadership dependency') || painLower.includes('founder') || painLower.includes('owner-operated')) {
+    specificPain = "you're still the one everyone turns to for the big decisions";
+    solution = "building a leadership layer that can carry the weight";
+  } else if (painLower.includes('relationship-dependent') || painLower.includes('relationship dependent')) {
+    specificPain = "your best clients came through relationships you personally built";
+    solution = "creating a pipeline that doesn't depend on your personal network";
+  } else if (painLower.includes('infrastructure') || painLower.includes('manual') || painLower.includes('scale')) {
+    specificPain = "the systems that got you here won't get you to the next level";
+    solution = "architecting infrastructure that scales without adding complexity";
+  } else if (painLower.includes('team') || painLower.includes('staff')) {
+    specificPain = "your team needs you in the room to deliver at your standard";
+    solution = "building systems so your team can operate at your level";
+  } else {
+    specificPain = "you've built something valuable but it still runs through you";
+    solution = "creating systems that let you step back without stepping down";
+  }
+
+  let personalHook = '';
+  if (hooks && hooks.length > 20) {
+    const hookPatterns = [
+      /(?:recognized|award|won|received|named|featured|speaker|keynote|author|published|grew|scaled|expanded)[^.]{10,80}\./gi,
+      /(?:founded|established|built|created)[^.]{5,50}(?:in \d{4}|over \d+)[^.]*\./gi,
+      /(?:\d+\s*years?)[^.]{10,60}\./gi
+    ];
+
+    for (const pattern of hookPatterns) {
+      const matches = hooks.match(pattern);
+      if (matches && matches[0].length > 15) {
+        personalHook = matches[0].replace(/^\*+\s*/, '').replace(/^\s*-\s*/, '').trim();
+        if (personalHook.length > 20 && personalHook.length < 120) break;
+        personalHook = '';
+      }
+    }
+  }
+
+  const subject = firstName
+    ? `${firstName} - a question about what's next`
+    : `${company} - growth without the chaos`;
+
+  let body = firstName ? `Hi ${firstName},\n\n` : `Hi,\n\n`;
+
+  if (personalHook) {
+    body += `I noticed ${personalHook.toLowerCase().startsWith('you') ? '' : 'that '}${personalHook.toLowerCase()}\n\n`;
+    body += `Leaders who've achieved that level often hit a similar inflection point: `;
+  } else if (years && years > 5) {
+    body += `${years} years building ${company} - that's not luck, that's proof you know how to create something that works.\n\n`;
+    body += `At this stage, the question usually shifts from "how do I grow?" to `;
+  } else {
+    body += `I've been looking at ${company} and the business you've built.\n\n`;
+    body += `My guess is `;
+  }
+
+  body += `${specificPain}.\n\n`;
+  body += `That's the gap I help established leaders close - ${solution}.\n\n`;
+  body += `If that resonates, I'd enjoy a conversation about what the next chapter could look like for ${company}.\n\n`;
+  body += `Best,\nMaggie Forbes\nMaggie Forbes Strategies`;
+
+  return { subject, body };
+}
+
 // Get Opportunities
 app.get('/api/opportunities', async (req, res) => {
   try {
