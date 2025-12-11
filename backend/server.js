@@ -543,7 +543,7 @@ app.post('/api/research-leads', async (req, res) => {
 // scores it, and runs it through the full pipeline
 
 app.post('/api/discover-company', async (req, res) => {
-  const { company_name, company_domain, contact_email } = req.body;
+  const { company_name, company_domain, contact_email, contact_name } = req.body;
 
   if (!company_name) {
     return res.status(400).json({
@@ -567,6 +567,7 @@ app.post('/api/discover-company', async (req, res) => {
       company_name,
       company_domain: company_domain || `${company_name.toLowerCase().replace(/\s+/g, '')}.com`,
       contact_email: contact_email || null,
+      contact_name: contact_name || null,
       route_to_outreach: true
     };
 
@@ -744,9 +745,13 @@ function generateDiscoveryEmail(opportunity, research, scoring) {
     companyInfo = research.companyBackground.findings.split('\n').slice(0, 2).join(' ').substring(0, 200);
   }
 
-  // Get decision maker first name if available
+  // Get first name - prioritize contact_name from opportunity data
   let firstName = '';
-  if (research.decisionMaker?.findings) {
+  if (opportunity.contact_name) {
+    // Extract first name from full name (e.g., "Eric Verzuh" -> "Eric")
+    firstName = opportunity.contact_name.split(' ')[0];
+  } else if (research.decisionMaker?.findings) {
+    // Fallback: try to extract from research
     const dmMatch = research.decisionMaker.findings.match(/([A-Z][a-z]+)\s+[A-Z]/);
     if (dmMatch) firstName = dmMatch[1];
   }
