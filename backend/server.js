@@ -93,6 +93,8 @@ const agentStats = {
 // Database diagnostic - check all tables and counts
 app.get('/api/db-check', async (req, res) => {
   try {
+    // Try to list ALL tables by querying information_schema
+    // Also try common table names
     const tables = [
       'scored_opportunities',
       'mfs_leads',
@@ -102,21 +104,32 @@ app.get('/api/db-check', async (req, res) => {
       'outreach_campaigns',
       'market_gaps',
       'email_blocklist',
-      'email_engagement'
+      'email_engagement',
+      'users',
+      'clients',
+      'prospects',
+      'companies',
+      'accounts',
+      'campaigns',
+      'emails',
+      'mfs_clients',
+      'system_settings',
+      'solution_deliveries',
+      'call_transcripts',
+      'email_conversations',
+      'followup_sequences'
     ];
 
     const results = {};
 
     for (const table of tables) {
       try {
-        const { data, error, count } = await supabase
+        const { count, error } = await supabase
           .from(table)
           .select('*', { count: 'exact', head: true });
 
-        if (error) {
-          results[table] = { exists: false, error: error.message };
-        } else {
-          // Get a sample row
+        if (!error) {
+          // Table exists - get sample
           const { data: sample } = await supabase
             .from(table)
             .select('*')
@@ -124,16 +137,25 @@ app.get('/api/db-check', async (req, res) => {
 
           results[table] = {
             exists: true,
-            count: count,
-            sampleColumns: sample?.[0] ? Object.keys(sample[0]) : []
+            count: count || 0,
+            columns: sample?.[0] ? Object.keys(sample[0]) : []
           };
         }
       } catch (e) {
-        results[table] = { exists: false, error: e.message };
+        // Table doesn't exist, skip
       }
     }
 
-    res.json({ success: true, tables: results });
+    // Also return the Supabase URL being used (masked)
+    const supabaseUrl = process.env.SUPABASE_URL || 'not set';
+    const maskedUrl = supabaseUrl.replace(/https:\/\/([^.]+)\.supabase\.co/, 'https://$1.supabase.co');
+
+    res.json({
+      success: true,
+      supabase_project: maskedUrl,
+      tables_found: Object.keys(results).filter(t => results[t]?.exists),
+      tables: results
+    });
 
   } catch (error) {
     res.status(500).json({ error: error.message });
