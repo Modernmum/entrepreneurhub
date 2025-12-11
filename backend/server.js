@@ -1897,6 +1897,112 @@ function autoStartSingleAgent(agentName, agentPath) {
   }
 }
 
+// ============================================
+// PREVIEW EMAILS FROM SCORED OPPORTUNITIES
+// ============================================
+// Generates email previews from top-scoring leads in scored_opportunities table
+// This lets you review what emails would look like before sending
+
+app.get('/api/preview-top-leads', async (req, res) => {
+  try {
+    const limit = parseInt(req.query.limit) || 10;
+    const minScore = parseInt(req.query.min_score) || 70;
+
+    // Get top-scoring leads from scored_opportunities
+    const { data: opportunities, error } = await supabase
+      .from('scored_opportunities')
+      .select('*')
+      .gte('overall_score', minScore)
+      .order('overall_score', { ascending: false })
+      .limit(limit);
+
+    if (error) {
+      return res.status(500).json({ error: error.message });
+    }
+
+    if (!opportunities || opportunities.length === 0) {
+      return res.json({
+        success: true,
+        message: `No leads found with score >= ${minScore}`,
+        previews: []
+      });
+    }
+
+    // Transform to lead format and generate emails
+    const previews = opportunities.map(opp => {
+      // Extract data from opportunity_data
+      const oppData = opp.opportunity_data || {};
+      const research = oppData.research || {};
+
+      // Try to find email from various sources
+      const discoveredEmail = oppData.discovered_email ||
+        oppData.email_discovery_raw?.email ||
+        null;
+
+      // Build lead object for SmartEmailWriter
+      const lead = {
+        id: opp.id,
+        company_name: opp.company_name,
+        company_domain: opp.company_domain,
+        contact_name: research.decisionMaker?.substring(0, 50) || null,
+        contact_email: discoveredEmail,
+        fit_score: opp.overall_score,
+        lead_research: {
+          company_background: research.companyBackground || '',
+          pain_points: research.painPoints || '',
+          personalization_hooks: research.personalizationHooks || '',
+          decision_maker: research.decisionMaker || ''
+        }
+      };
+
+      // Generate email using SmartEmailWriter
+      const email = previewEmailWriter.writeEmail(lead);
+      const validation = previewEmailWriter.validateEmail(email);
+
+      return {
+        lead: {
+          id: opp.id,
+          company: opp.company_name,
+          domain: opp.company_domain,
+          contact_name: lead.contact_name,
+          contact_email: discoveredEmail,
+          score: opp.overall_score,
+          priority: opp.priority_tier,
+          source: opp.source
+        },
+        research_summary: {
+          background: (research.companyBackground || '').substring(0, 300),
+          pain_points: (research.painPoints || '').substring(0, 300),
+          hooks: (research.personalizationHooks || '').substring(0, 200)
+        },
+        email: {
+          subject: email.subject,
+          body: email.body,
+          to: discoveredEmail || 'NO EMAIL FOUND',
+          from: 'Maggie Forbes <maggie@maggieforbesstrategies.com>'
+        },
+        analysis: email.analysis,
+        validation: validation,
+        ready_to_send: !!discoveredEmail && validation.valid
+      };
+    });
+
+    const readyCount = previews.filter(p => p.ready_to_send).length;
+
+    res.json({
+      success: true,
+      total_found: opportunities.length,
+      ready_to_send: readyCount,
+      missing_email: previews.filter(p => !p.lead.contact_email).length,
+      previews: previews
+    });
+
+  } catch (error) {
+    console.error('Preview top leads error:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
 // Start server
 app.listen(PORT, () => {
   console.log(`🚀 Unbound.Team backend running on port ${PORT}`);
