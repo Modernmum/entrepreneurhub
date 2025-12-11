@@ -1,4 +1,5 @@
-# Trigger deploy Tue 10 Dec 2025 14:15:00 PST
+# Trigger deploy Tue 10 Dec 2025 14:45:00 PST
+# FIXED: Removed LinkedIn mention and P.S. from emails
 # NEW: LinkedIn-only email personalization ($0 approach)
 # - Emails personalized by first name, job title, company
 # - Role-specific messaging (CEO, Founder, Coach, Consultant, etc.)

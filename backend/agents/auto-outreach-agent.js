@@ -270,11 +270,11 @@ class AutoOutreachAgent {
     if (roleCategory === 'founder' || roleCategory === 'executive') {
       body += `As ${jobTitle ? `a ${jobTitle}` : 'a leader'} at ${company}, I imagine your time is precious - so I'll be brief.\n\n`;
     } else if (roleCategory === 'consultant' || roleCategory === 'coach') {
-      body += `I came across your profile and noticed you're ${jobTitle ? `a ${jobTitle}` : 'in the consulting/coaching space'}. ${painPoint}\n\n`;
+      body += `${company} came up as a business that might benefit from automating client acquisition. ${painPoint}\n\n`;
     } else if (jobTitle) {
-      body += `I noticed your role as ${jobTitle} at ${company} and thought this might be relevant.\n\n`;
+      body += `${company} came up while I was researching businesses that could benefit from automated lead generation.\n\n`;
     } else {
-      body += `I came across ${company} and wanted to reach out.\n\n`;
+      body += `${company} came up as a business that might be a good fit for what we do.\n\n`;
     }
 
     // Value proposition
@@ -292,8 +292,7 @@ class AutoOutreachAgent {
     body += `Would a quick 15-minute call make sense to see if there's a fit?\n\n`;
     body += `Best,\n`;
     body += `Maggie Forbes\n`;
-    body += `Unbound.Team\n\n`;
-    body += `P.S. This entire outreach was automated - from finding you on LinkedIn to sending this personalized email. Same system we'd build for ${company}.`;
+    body += `Unbound.Team`;
 
     return { subject, body };
   }
