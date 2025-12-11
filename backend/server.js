@@ -520,7 +520,7 @@ app.post('/api/research-leads', async (req, res) => {
     // Get leads that need research
     // Fetch more than requested limit, then filter to unresearched in code
     // (Supabase can't filter on nested JSONB fields like lead_research.researched_at)
-    const fetchLimit = Math.min(limit * 10, 1000); // Fetch 10x to find unresearched
+    const fetchLimit = Math.min(limit * 20, 5000); // Fetch more to find unresearched beyond first 1000
 
     let query = supabase
       .from('scored_opportunities')
