@@ -575,18 +575,24 @@ app.post('/api/research-leads', async (req, res) => {
         const research = await researcher.researchLead(lead);
 
         // Update the opportunity with research data
+        // MFS-aligned fields + legacy field names for compatibility
         const updatedOpportunityData = {
           ...lead.opportunity_data,
           lead_research: {
             researched_at: new Date().toISOString(),
+            // Core research fields
             company_background: research.companyBackground?.findings || null,
+            founder_profile: research.decisionMaker?.findings || null,
+            growth_ceiling_indicators: research.painPointAnalysis?.findings || null,
+            personalization_hooks: research.personalizationHooks?.findings || null,
+            outreach_angle: research.recommendedApproach?.findings || null,
+            // Legacy field names (for SmartEmailWriter compatibility)
             pain_points: research.painPointAnalysis?.findings || null,
             decision_maker: research.decisionMaker?.findings || null,
-            contact_discovery: research.contactDiscovery?.findings || null,
-            recent_activity: research.recentActivity?.findings || null,
-            market_context: research.marketContext?.findings || null,
-            personalization_hooks: research.personalizationHooks?.findings || null,
-            recommended_approach: research.recommendedApproach?.findings || null
+            recommended_approach: research.recommendedApproach?.findings || null,
+            // Raw response for debugging
+            raw_response: research.raw_response || null,
+            sources: research.sources || []
           }
         };
 

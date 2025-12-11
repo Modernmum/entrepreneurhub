@@ -42,33 +42,55 @@ class AIResearcher {
 
   /**
    * Single consolidated Perplexity call - all research in one request
-   * Updated for Maggie Forbes Strategies - Enterprise Growth Consulting
+   * Optimized for Maggie Forbes Strategies - Strategic Growth Architecture
+   * Target: $3M-$25M founder-led businesses hitting a growth ceiling
    */
   async consolidatedResearch(opportunity) {
     const domain = opportunity.company_domain || '';
-    const query = `Research this business for B2B outreach from an enterprise growth consultant:
+    const contactName = opportunity.contact_name || opportunity.opportunity_data?.contact_full_name || '';
+    const jobTitle = opportunity.opportunity_data?.job_title || '';
+
+    const query = `Research this business for Maggie Forbes Strategies outreach:
 
 Company: ${opportunity.company_name}
 ${domain ? `Website: ${domain}` : ''}
-${opportunity.contact_email ? `Contact: ${opportunity.contact_email}` : ''}
+${contactName ? `Contact: ${contactName}` : ''}
+${jobTitle ? `Title: ${jobTitle}` : ''}
 
-Provide a CONCISE research report with these sections:
+TARGET CLIENT PROFILE: Established founder-led businesses ($3M-$25M revenue) that have hit a growth ceiling. NOT startups, NOT enterprise corporations.
 
-1. COMPANY BACKGROUND (2-3 sentences): What they do, their approximate revenue/size ($3M-$25M range ideal), how long in business, industry
+Provide a research report with these sections:
 
-2. PAIN POINTS (2-3 bullet points): Signs they may be hitting a growth ceiling:
-   - Leadership dependency (founder doing everything)
-   - Relationship-dependent revenue (no systematic sales process)
-   - Infrastructure that doesn't scale (manual processes, no systems)
-   - Team that can't operate without founder involvement
+1. COMPANY BACKGROUND:
+   - What they do (1 sentence)
+   - Estimated revenue range (look for employee count, office size, client list indicators)
+   - Years in business (founded when?)
+   - Industry/niche
+   - IS THIS A FIT? (Yes/No/Maybe - based on $3M-$25M founder-led criteria)
 
-3. DECISION MAKER: Name, role, and any indicators of being founder-led or owner-operated
+2. FOUNDER/OWNER PROFILE:
+   - Name and exact title
+   - Are they still hands-on in daily operations? (critical - look for LinkedIn activity, speaking, involvement)
+   - How long have they led this company?
+   - Any signs of burnout, transition thinking, or "what's next" mindset?
 
-4. PERSONALIZATION HOOKS (2-3 specific details): Recent achievements, growth milestones, speaking engagements, books authored, industry recognition
+3. GROWTH CEILING INDICATORS (look for specific evidence):
+   - Leadership dependency: Does the business revolve around the founder?
+   - Revenue concentration: Do they rely on referrals/relationships vs systematic sales?
+   - Operational bottlenecks: Manual processes, founder approval needed for everything?
+   - Team limitations: Can the team execute without founder in the room?
+   - Scaling challenges: Have they plateaued or struggled to grow past a certain point?
 
-5. RECOMMENDED APPROACH (1-2 sentences): Best angle to discuss architecting systems for enterprise growth without operational chaos
+4. PERSONALIZATION HOOKS (specific, quotable details):
+   - Recent achievements, awards, recognition
+   - Milestones (years in business, client wins, expansion)
+   - Speaking engagements, podcasts, books, thought leadership
+   - Personal interests or causes they care about
+   - Recent company news or announcements
 
-Keep each section brief and actionable. Focus on what's relevant for high-touch executive outreach.`;
+5. OUTREACH ANGLE (1-2 sentences): The most compelling way to open a conversation about building systems that let them step back without stepping down.
+
+Be specific and factual. If information isn't available, say so.`;
 
     const result = await this.askPerplexity(query);
 
@@ -87,11 +109,15 @@ Keep each section brief and actionable. Focus on what's relevant for high-touch 
     // Parse the response into sections
     const response = result.findings || '';
     return {
-      company_background: this.extractSection(response, 'COMPANY BACKGROUND', 'PAIN POINTS'),
-      pain_points: this.extractSection(response, 'PAIN POINTS', 'DECISION MAKER'),
-      decision_maker: this.extractSection(response, 'DECISION MAKER', 'PERSONALIZATION'),
-      personalization_hooks: this.extractSection(response, 'PERSONALIZATION', 'RECOMMENDED'),
-      recommended_approach: this.extractSection(response, 'RECOMMENDED APPROACH', null),
+      company_background: this.extractSection(response, 'COMPANY BACKGROUND', 'FOUNDER'),
+      founder_profile: this.extractSection(response, 'FOUNDER/OWNER PROFILE', 'GROWTH CEILING'),
+      growth_ceiling_indicators: this.extractSection(response, 'GROWTH CEILING INDICATORS', 'PERSONALIZATION'),
+      personalization_hooks: this.extractSection(response, 'PERSONALIZATION HOOKS', 'OUTREACH'),
+      outreach_angle: this.extractSection(response, 'OUTREACH ANGLE', null),
+      // Also map to legacy field names for compatibility
+      pain_points: this.extractSection(response, 'GROWTH CEILING INDICATORS', 'PERSONALIZATION'),
+      decision_maker: this.extractSection(response, 'FOUNDER/OWNER PROFILE', 'GROWTH CEILING'),
+      recommended_approach: this.extractSection(response, 'OUTREACH ANGLE', null),
       sources: result.sources || [],
       raw_response: response
     };
