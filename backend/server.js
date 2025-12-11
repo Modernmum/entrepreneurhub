@@ -557,19 +557,12 @@ app.post('/api/research-leads', async (req, res) => {
       console.log(`   📋 Has lead_research: ${!!(firstLead.opportunity_data?.lead_research)}`);
     }
 
-    // Filter to leads that need real research
-    // Check if lead_research exists AND has real content (not just "Research skipped")
+    // Filter to leads that need research
+    // Skip any lead that has lead_research field (even if it failed before - don't pay twice)
     const unresearched = leads.filter(l => {
       const research = l.opportunity_data?.lead_research;
-      if (!research) return true; // No research at all
-
-      // Check if it's placeholder research
-      const bg = research.company_background || '';
-      const raw = research.raw_response || '';
-      if (bg.includes('Research skipped') || raw.includes('Research skipped')) return true;
-      if (bg.length < 50 && !research.researched_at) return true;
-
-      return false; // Has real research
+      if (!research) return true; // No research at all - process this lead
+      return false; // Has lead_research (even if failed) - skip to avoid paying twice
     });
 
     // Limit to requested amount
