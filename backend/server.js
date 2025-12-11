@@ -517,16 +517,19 @@ app.post('/api/research-leads', async (req, res) => {
   try {
     const researcher = new AIResearcher();
 
-    // Get unresearched leads (no lead_research in opportunity_data)
-    // Order by created_at DESC to get newest leads first
+    // Get leads that need research
+    // Fetch more than requested limit, then filter to unresearched in code
+    // (Supabase can't filter on nested JSONB fields like lead_research.researched_at)
+    const fetchLimit = Math.min(limit * 10, 1000); // Fetch 10x to find unresearched
+
     let query = supabase
       .from('scored_opportunities')
       .select('*')
       .is('outreach_sent', null)
       .eq('route_to_outreach', true)
       .gte('overall_score', 70)
-      .order('created_at', { ascending: false })
-      .limit(limit);
+      .order('overall_score', { ascending: false }) // Highest scores first
+      .limit(fetchLimit);
 
     // Optionally filter by source
     if (source) {
@@ -568,9 +571,10 @@ app.post('/api/research-leads', async (req, res) => {
 
       return false; // Has real research
     });
-    console.log(`   📋 After filtering: ${unresearched.length} need research out of ${leads.length}`);
 
-    console.log(`📋 Found ${unresearched.length} unresearched leads out of ${leads.length}`);
+    // Limit to requested amount
+    const toResearch = unresearched.slice(0, limit);
+    console.log(`   📋 Found ${unresearched.length} unresearched, processing ${toResearch.length} (limit: ${limit})`);
 
     const firstLeadInfo = leads.length > 0 ? {
       name: leads[0].company_name,
@@ -578,9 +582,9 @@ app.post('/api/research-leads', async (req, res) => {
       keys: Object.keys(leads[0].opportunity_data || {})
     } : null;
 
-    const results = { researched: 0, skipped: 0, errors: [], queryReturned: leads.length, unresearchedCount: unresearched.length, firstLead: firstLeadInfo };
+    const results = { researched: 0, skipped: 0, errors: [], queryReturned: leads.length, unresearchedCount: unresearched.length, processingCount: toResearch.length, firstLead: firstLeadInfo };
 
-    for (const lead of unresearched) {
+    for (const lead of toResearch) {
       try {
         console.log(`\n🔍 Researching: ${lead.company_name}`);
 
