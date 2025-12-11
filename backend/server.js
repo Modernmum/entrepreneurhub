@@ -2041,11 +2041,16 @@ app.get('/api/preview-top-leads', async (req, res) => {
         leadResearch.contact_email ||
         null;
 
-      // Get contact name from various sources
-      const contactName = leadResearch.contact_name ||
+      // Get contact name from various sources (imported leads have contact_first_name/contact_full_name)
+      const contactName = oppData.contact_full_name ||
+        oppData.contact_first_name ||
+        leadResearch.contact_name ||
         research.decisionMaker?.substring(0, 50) ||
         oppData.contact_name ||
         null;
+
+      // Get job title for context
+      const jobTitle = oppData.job_title || null;
 
       // Build lead object for SmartEmailWriter - merge research from multiple structures
       const lead = {
@@ -2054,6 +2059,9 @@ app.get('/api/preview-top-leads', async (req, res) => {
         company_domain: opp.company_domain,
         contact_name: contactName,
         contact_email: discoveredEmail,
+        job_title: jobTitle,
+        location: oppData.location || null,
+        linkedin_url: oppData.linkedin_url || null,
         fit_score: opp.overall_score,
         lead_research: {
           company_background: research.companyBackground || leadResearch.company_background || '',
@@ -2074,6 +2082,9 @@ app.get('/api/preview-top-leads', async (req, res) => {
           domain: opp.company_domain,
           contact_name: lead.contact_name,
           contact_email: discoveredEmail,
+          job_title: jobTitle,
+          linkedin_url: oppData.linkedin_url || null,
+          location: oppData.location || null,
           score: opp.overall_score,
           priority: opp.priority_tier,
           source: opp.source
@@ -2081,7 +2092,9 @@ app.get('/api/preview-top-leads', async (req, res) => {
         research_summary: {
           background: (lead.lead_research.company_background || '').substring(0, 300),
           pain_points: (lead.lead_research.pain_points || '').substring(0, 300),
-          hooks: (lead.lead_research.personalization_hooks || '').substring(0, 200)
+          hooks: (lead.lead_research.personalization_hooks || '').substring(0, 200),
+          has_real_research: (lead.lead_research.company_background?.length > 100) ||
+                            (lead.lead_research.pain_points?.length > 50)
         },
         email: {
           subject: email.subject,

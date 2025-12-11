@@ -55,10 +55,20 @@ class SmartEmailWriter {
   }
 
   /**
-   * Write a personalized email using research data
+   * Write a personalized email using research data OR imported lead data
    */
   writeEmail(lead) {
     const research = lead.lead_research || {};
+
+    // Check if this is an imported lead with limited data
+    const isImportedLead = lead.job_title || lead.linkedin_url ||
+      (research.company_background === 'Research skipped - using opportunity data only.');
+
+    if (isImportedLead && !this.hasRealResearch(research)) {
+      // Use job-title based personalization for imported leads
+      return this.writeImportedLeadEmail(lead);
+    }
+
     const analysis = this.analyzeResearch(lead, research);
 
     // Choose the best email angle based on what we know
@@ -68,6 +78,137 @@ class SmartEmailWriter {
     const email = this.composeEmail(lead, analysis, angle);
 
     return email;
+  }
+
+  /**
+   * Check if lead has real Perplexity research
+   */
+  hasRealResearch(research) {
+    const bg = research.company_background || '';
+    const pain = research.pain_points || '';
+    return (bg.length > 100 && !bg.includes('Research skipped')) ||
+           (pain.length > 50 && !pain.includes('Research skipped'));
+  }
+
+  /**
+   * Write email for imported leads using job title and company info
+   */
+  writeImportedLeadEmail(lead) {
+    const firstName = lead.contact_name?.split(' ')[0] || null;
+    const company = lead.company_name;
+    const jobTitle = lead.job_title || '';
+    const location = lead.location || '';
+
+    // Determine role type from job title
+    const roleType = this.categorizeRole(jobTitle);
+
+    // Generate subject based on role
+    const subject = this.writeImportedSubject(firstName, company, roleType);
+
+    // Generate body based on what we know
+    const body = this.writeImportedBody(firstName, company, jobTitle, roleType, location);
+
+    return {
+      subject,
+      body,
+      analysis: {
+        angle: 'imported_lead_' + roleType,
+        confidence: firstName ? 'medium' : 'low',
+        researchQuality: 'imported_only',
+        dataUsed: { firstName: !!firstName, jobTitle: !!jobTitle, location: !!location }
+      }
+    };
+  }
+
+  /**
+   * Categorize role from job title
+   */
+  categorizeRole(jobTitle) {
+    const title = (jobTitle || '').toLowerCase();
+
+    if (title.includes('ceo') || title.includes('chief executive') || title.includes('founder') ||
+        title.includes('owner') || title.includes('president') || title.includes('principal')) {
+      return 'founder';
+    }
+    if (title.includes('coo') || title.includes('operations')) {
+      return 'operations';
+    }
+    if (title.includes('cfo') || title.includes('finance') || title.includes('financial')) {
+      return 'finance';
+    }
+    if (title.includes('managing director') || title.includes('general manager') || title.includes('gm')) {
+      return 'executive';
+    }
+    if (title.includes('partner')) {
+      return 'partner';
+    }
+    if (title.includes('director') || title.includes('vp') || title.includes('vice president')) {
+      return 'director';
+    }
+    return 'leader';
+  }
+
+  /**
+   * Write subject for imported leads
+   */
+  writeImportedSubject(firstName, company, roleType) {
+    if (firstName) {
+      if (roleType === 'founder' || roleType === 'partner') {
+        return `${firstName} - a thought about ${company}'s next chapter`;
+      }
+      return `${firstName} - quick question about ${company}`;
+    }
+    return `${company} - growth without the growing pains`;
+  }
+
+  /**
+   * Write body for imported leads based on role
+   */
+  writeImportedBody(firstName, company, jobTitle, roleType, location) {
+    let body = firstName ? `Hi ${firstName},\n\n` : `Hi,\n\n`;
+
+    // Opening based on role type
+    switch (roleType) {
+      case 'founder':
+        body += `Building ${company} to where it is today took real vision. `;
+        body += `Most founders I work with hit a point where the business works - but only because they're in every room.\n\n`;
+        body += `The question becomes: how do you grow without becoming the bottleneck?\n\n`;
+        break;
+
+      case 'operations':
+        body += `Running operations at ${company} means you see both the potential and the friction points.\n\n`;
+        body += `In my experience, the companies that scale smoothly are the ones that build the right systems before they desperately need them.\n\n`;
+        break;
+
+      case 'partner':
+        body += `Leading a firm like ${company} means balancing growth with the quality that built your reputation.\n\n`;
+        body += `Most partners I work with are looking for ways to expand without diluting what makes them valuable.\n\n`;
+        break;
+
+      case 'executive':
+      case 'director':
+        body += `I came across ${company} and was curious about what you're building there.\n\n`;
+        body += `Leaders in your position often see opportunities the business isn't quite set up to capture yet.\n\n`;
+        break;
+
+      default:
+        body += `I've been looking at ${company} and the business you're building.\n\n`;
+        body += `Companies at your stage often hit a point where the systems that got you here won't get you to the next level.\n\n`;
+    }
+
+    // Value prop
+    body += `I help established businesses architect growth that doesn't create chaos - building the infrastructure for scale before you're drowning in it.\n\n`;
+
+    // CTA
+    if (roleType === 'founder' || roleType === 'partner') {
+      body += `If you're thinking about what the next chapter looks like for ${company}, I'd welcome a conversation.\n`;
+    } else {
+      body += `If that resonates, I'd enjoy a quick conversation about what might be possible.\n`;
+    }
+
+    body += `\nBest,\nMaggie Forbes`;
+
+    return body;
   }
 
   /**
