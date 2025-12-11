@@ -12,6 +12,7 @@
 
 const { createClient } = require('@supabase/supabase-js');
 const { Resend } = require('resend');
+const SmartEmailWriter = require('../services/smart-email-writer');
 
 class AutoOutreachAgent {
   constructor() {
@@ -26,6 +27,9 @@ class AutoOutreachAgent {
     // Resend email client
     this.resend = new Resend(process.env.RESEND_API_KEY);
     this.fromEmail = process.env.RESEND_FROM_EMAIL || 'maggie@maggieforbesstrategies.com';
+
+    // Smart email writer - uses research data intelligently
+    this.emailWriter = new SmartEmailWriter();
   }
 
   async start() {
@@ -101,8 +105,21 @@ class AutoOutreachAgent {
 
           console.log(`\n📧 Processing: ${lead.company_name} (${lead.contact_name})`);
 
-          // Generate personalized email using research
-          const email = this.generateMFSEmail(lead);
+          // Generate personalized email using smart writer (analyzes research data)
+          const email = this.emailWriter.writeEmail(lead);
+
+          // Validate email quality
+          const validation = this.emailWriter.validateEmail(email);
+          if (!validation.valid) {
+            console.log(`   ⚠️  Email quality issues: ${validation.issues.join(', ')}`);
+            if (validation.quality === 'poor') {
+              console.log(`   ❌ Skipping - email quality too poor`);
+              await this.markLeadStatus(lead.id, 'email_quality_failed');
+              continue;
+            }
+          }
+
+          console.log(`   📝 Email angle: ${email.analysis?.angle}, confidence: ${email.analysis?.confidence}`);
 
           // Send email (if auto-send enabled)
           let sent = false;
@@ -276,12 +293,15 @@ class AutoOutreachAgent {
     const campaignData = {
       opportunity_id: lead.id,
       company_name: lead.company_name,
+      contact_name: lead.contact_name,
       recipient_email: lead.contact_email,
       subject: email.subject,
       email_content: email.body,
       status: sent ? 'sent' : 'draft',
       fit_score: lead.fit_score,
       lead_research: lead.lead_research,
+      // Smart writer analysis - how the email was personalized
+      email_analysis: email.analysis || null,
       sent_at: sent ? new Date().toISOString() : null,
       created_at: new Date().toISOString()
     };

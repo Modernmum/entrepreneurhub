@@ -966,6 +966,10 @@ app.post('/api/send-email', async (req, res) => {
 });
 
 // Preview outreach emails - shows what would be sent without actually sending
+// Uses the SmartEmailWriter for intelligent personalization
+const SmartEmailWriter = require('./services/smart-email-writer');
+const previewEmailWriter = new SmartEmailWriter();
+
 app.get('/api/preview-outreach', async (req, res) => {
   try {
     const limit = parseInt(req.query.limit) || 10;
@@ -992,9 +996,11 @@ app.get('/api/preview-outreach', async (req, res) => {
       });
     }
 
-    // Generate preview emails for each lead
+    // Generate preview emails using SmartEmailWriter
     const previews = leads.map(lead => {
-      const email = generateMFSPreviewEmail(lead);
+      const email = previewEmailWriter.writeEmail(lead);
+      const validation = previewEmailWriter.validateEmail(email);
+
       return {
         lead: {
           id: lead.id,
@@ -1014,7 +1020,9 @@ app.get('/api/preview-outreach', async (req, res) => {
           body: email.body,
           to: lead.contact_email,
           from: 'Maggie Forbes <maggie@maggieforbesstrategies.com>'
-        }
+        },
+        analysis: email.analysis,
+        validation: validation
       };
     });
 
@@ -1030,7 +1038,40 @@ app.get('/api/preview-outreach', async (req, res) => {
   }
 });
 
-// Helper function for email preview generation (same as agent uses)
+// Test email generation with sample/custom data
+app.post('/api/test-email-writer', async (req, res) => {
+  const { lead } = req.body;
+
+  if (!lead || !lead.company_name) {
+    return res.status(400).json({ error: 'lead object with company_name required' });
+  }
+
+  try {
+    const email = previewEmailWriter.writeEmail(lead);
+    const validation = previewEmailWriter.validateEmail(email);
+
+    res.json({
+      success: true,
+      email: {
+        subject: email.subject,
+        body: email.body
+      },
+      analysis: email.analysis,
+      validation: validation,
+      input: {
+        company: lead.company_name,
+        contact: lead.contact_name,
+        hasResearch: !!lead.lead_research
+      }
+    });
+
+  } catch (error) {
+    console.error('Test email writer error:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Helper function for email preview generation (legacy - kept for compatibility)
 function generateMFSPreviewEmail(lead) {
   const company = lead.company_name;
   const research = lead.lead_research || {};
