@@ -554,8 +554,21 @@ app.post('/api/research-leads', async (req, res) => {
       console.log(`   📋 Has lead_research: ${!!(firstLead.opportunity_data?.lead_research)}`);
     }
 
-    const unresearched = leads.filter(l => !l.opportunity_data?.lead_research);
-    console.log(`   📋 After filtering: ${unresearched.length} unresearched out of ${leads.length}`);
+    // Filter to leads that need real research
+    // Check if lead_research exists AND has real content (not just "Research skipped")
+    const unresearched = leads.filter(l => {
+      const research = l.opportunity_data?.lead_research;
+      if (!research) return true; // No research at all
+
+      // Check if it's placeholder research
+      const bg = research.company_background || '';
+      const raw = research.raw_response || '';
+      if (bg.includes('Research skipped') || raw.includes('Research skipped')) return true;
+      if (bg.length < 50 && !research.researched_at) return true;
+
+      return false; // Has real research
+    });
+    console.log(`   📋 After filtering: ${unresearched.length} need research out of ${leads.length}`);
 
     console.log(`📋 Found ${unresearched.length} unresearched leads out of ${leads.length}`);
 
